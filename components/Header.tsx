@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Bell, ChevronRight, Search, X, Loader2 } from 'lucide-react';
@@ -13,7 +14,7 @@ interface HeaderProps {
   setIsMenuOpen: (open: boolean) => void;
 }
 
-export function Header({ 
+export const Header = memo(function Header({ 
   session, 
   unreadCount, 
   searchQuery, 
@@ -37,8 +38,8 @@ export function Header({
           </h1>
         </div>
 
-        {/* Search */}
-        <div className="flex-1 max-w-xs mx-3 relative">
+        {/* Search - only show on larger screens */}
+        <div className="hidden md:block flex-1 max-w-xs mx-3 relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
@@ -110,4 +111,4 @@ export function Header({
       </div>
     </header>
   );
-}
+});

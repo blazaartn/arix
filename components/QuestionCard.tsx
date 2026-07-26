@@ -1,52 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { signIn } from 'next-auth/react';
+import { memo, useState, useEffect } from 'react';
+import { signIn, useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { 
   Heart, MessageCircle, Share2, Clock, BookOpen, 
-  Loader2, X, Send, CheckCircle, Code, Eye,
-  Calendar, User, MoreVertical
+  Loader2, X, Send, CheckCircle, Code
 } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
-
-interface Image {
-  id: string;
-  image_url: string;
-  caption: string;
-  is_primary: boolean;
-}
-
-interface Question {
-  id: string;
-  title: string;
-  content: string;
-  user_id: string;
-  subject_name: string;
-  author_name: string;
-  author_avatar: string;
-  author_role: string;
-  view_count: number;
-  created_at: string;
-  comments_count: number;
-  like_count: number;
-  images_count: number;
-  image?: Image;
-  code_content?: string;
-  code_language?: string;
-}
-
-interface Comment {
-  id: string;
-  content: string;
-  user_id: string;
-  author_name: string;
-  author_avatar: string;
-  created_at: string;
-}
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 
 interface QuestionCardProps {
-  question: Question;
+  question: any;
   isLoggedIn: boolean;
   currentUserId?: string;
   onRefresh: () => void;
@@ -85,101 +50,105 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
   );
 }
 
-export function QuestionCard({ 
+export const QuestionCard = memo(function QuestionCard({ 
   question, 
   isLoggedIn, 
   currentUserId, 
   onRefresh, 
   onImageClick 
 }: QuestionCardProps) {
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(question.like_count || 0);
-  const [isLiking, setIsLiking] = useState(false);
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  
+  // Fetch like status
+  const { data: likeData, refetch: refetchLikes } = useQuery({
+    queryKey: ['likes', question.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/likes?questionId=${question.id}`);
+      return res.json();
+    },
+    staleTime: 10000,
+    enabled: isLoggedIn,
+    initialData: { count: question.like_count || 0, liked: false }
+  });
 
-  useEffect(() => {
-    const fetchLikeData = async () => {
-      try {
-        const res = await fetch(`/api/likes?questionId=${question.id}`);
-        const data = await res.json();
-        setLikesCount(data.count || 0);
-        setLiked(data.liked || false);
-      } catch {
-        setLikesCount(0);
-        setLiked(false);
-      }
-    };
-    fetchLikeData();
-  }, [question.id]);
-
-  useEffect(() => {
-    if (showComments) fetchComments();
-  }, [showComments]);
-
-  const fetchComments = async () => {
-    setLoadingComments(true);
-    try {
+  // Fetch comments
+  const { data: commentsData, refetch: refetchComments, isLoading: loadingComments } = useQuery({
+    queryKey: ['comments', question.id],
+    queryFn: async () => {
       const res = await fetch(`/api/comments?questionId=${question.id}`);
       const data = await res.json();
-      setComments(data.comments || []);
-    } catch {
-      setComments([]);
-    } finally {
-      setLoadingComments(false);
-    }
-  };
+      return data.comments || [];
+    },
+    enabled: showComments,
+    staleTime: 30000,
+  });
 
-  const handleLike = async () => {
-    if (!isLoggedIn || isLiking) return;
-    setIsLiking(true);
-    try {
+  // Like mutation
+  const likeMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch('/api/likes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questionId: question.id })
       });
-      const data = await res.json();
-      setLiked(data.liked);
-      setLikesCount(prev => data.liked ? prev + 1 : prev - 1);
-    } catch {}
-    setIsLiking(false);
-  };
+      return res.json();
+    },
+    onSuccess: (data) => {
+      // Update like data optimistically
+      queryClient.setQueryData(['likes', question.id], (old: any) => ({
+        ...old,
+        count: data.liked ? (old?.count || 0) + 1 : (old?.count || 0) - 1,
+        liked: data.liked
+      }));
+      // Invalidate questions list to update counts
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      onRefresh();
+    }
+  });
 
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim() || !isLoggedIn) return;
-    setSubmitting(true);
-    try {
+  // Comment mutation
+  const commentMutation = useMutation({
+    mutationFn: async (content: string) => {
       const res = await fetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId: question.id, content: newComment.trim() })
+        body: JSON.stringify({ questionId: question.id, content })
       });
-      const data = await res.json();
-      if (data.success) {
-        setNewComment('');
-        fetchComments();
-        onRefresh();
-      }
-    } catch {}
-    setSubmitting(false);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchComments();
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      onRefresh();
+    }
+  });
+
+  const handleLike = () => {
+    if (!isLoggedIn) return;
+    likeMutation.mutate();
+  };
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !isLoggedIn) return;
+    commentMutation.mutate(newComment.trim());
+    setNewComment('');
   };
 
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Supprimer ce commentaire ?')) return;
-    try {
-      const res = await fetch(`/api/comments?id=${commentId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        fetchComments();
-        onRefresh();
-      }
-    } catch {}
+    const res = await fetch(`/api/comments?id=${commentId}`, { method: 'DELETE' });
+    if (res.ok) {
+      refetchComments();
+      onRefresh();
+    }
   };
+
+  const likes = likeData || { count: 0, liked: false };
+  const comments = commentsData || [];
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
@@ -229,7 +198,7 @@ export function QuestionCard({
 
       {/* Image */}
       {question.image && (
-        <div className="px-4 pb-2 cursor-pointer" onClick={() => onImageClick(question.image!.image_url)}>
+        <div className="px-4 pb-2 cursor-pointer" onClick={() => onImageClick(question.image.image_url)}>
           <img 
             src={question.image.image_url} 
             alt="Image" 
@@ -256,11 +225,11 @@ export function QuestionCard({
       <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-50">
         <button 
           onClick={handleLike} 
-          disabled={isLiking} 
-          className={`flex items-center gap-1 text-sm transition ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'} ${isLiking ? 'opacity-50' : ''}`}
+          disabled={likeMutation.isPending} 
+          className={`flex items-center gap-1 text-sm transition ${likes.liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'} ${likeMutation.isPending ? 'opacity-50' : ''}`}
         >
-          {isLiking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={`w-4 h-4 ${liked ? 'fill-red-500' : ''}`} />}
-          <span>{formatNumber(likesCount)}</span>
+          {likeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={`w-4 h-4 ${likes.liked ? 'fill-red-500' : ''}`} />}
+          <span>{formatNumber(likes.count)}</span>
         </button>
         <button 
           onClick={() => { if (!isLoggedIn) return; setShowComments(!showComments); }} 
@@ -293,7 +262,7 @@ export function QuestionCard({
             ) : comments.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-2">Aucun commentaire</p>
             ) : (
-              comments.map((c) => (
+              comments.map((c: any) => (
                 <div key={c.id} className="flex gap-2 group">
                   <img 
                     src={c.author_avatar || '/default-avatar.png'} 
@@ -333,10 +302,10 @@ export function QuestionCard({
             />
             <button 
               type="submit" 
-              disabled={submitting || !newComment.trim()} 
+              disabled={commentMutation.isPending || !newComment.trim()} 
               className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 transition flex items-center justify-center min-w-[40px]"
             >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {commentMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           </form>
         </div>
@@ -357,4 +326,4 @@ export function QuestionCard({
       )}
     </div>
   );
-}
+});
