@@ -9,7 +9,7 @@ import {
   Copy, Check, Terminal, AlertCircle,
   Moon, Sun, X, ChevronDown, Save, Trash2,
   Plus, File, FolderOpen, Download, FolderPlus,
-  Edit2, MoreVertical, Loader2
+  Edit2, MoreVertical, Loader2, Maximize
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { ToastProvider } from '@/contexts/ToastContext';
@@ -74,12 +74,6 @@ const FILE_ICONS: Record<FileType, any> = {
   javascript: <FileCode className="w-4 h-4 text-yellow-500" />
 };
 
-const LANGUAGE_MAP: Record<FileType, string> = {
-  html: 'html',
-  css: 'css',
-  javascript: 'javascript'
-};
-
 // Helper functions
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
@@ -119,6 +113,7 @@ function PlaygroundContent() {
   const [isRunning, setIsRunning] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
   const [showConsole, setShowConsole] = useState(false);
@@ -451,6 +446,11 @@ function PlaygroundContent() {
     }
   }, []);
 
+  // Toggle preview fullscreen (mobile)
+  const togglePreviewFullscreen = useCallback(() => {
+    setIsPreviewFullscreen(!isPreviewFullscreen);
+  }, [isPreviewFullscreen]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -465,11 +465,14 @@ function PlaygroundContent() {
       if (e.key === 'Escape' && isFullscreen) {
         toggleFullscreen();
       }
+      if (e.key === 'Escape' && isPreviewFullscreen) {
+        setIsPreviewFullscreen(false);
+      }
     };
     
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [runCode, downloadFile, isFullscreen, toggleFullscreen]);
+  }, [runCode, downloadFile, isFullscreen, isPreviewFullscreen, toggleFullscreen]);
 
   // Tab key support
   const handleTabKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -511,6 +514,33 @@ function PlaygroundContent() {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // ✅ Mobile Preview Fullscreen
+  if (isPreviewFullscreen) {
+    return (
+      <div className="fixed inset-0 z-[400] bg-white flex flex-col">
+        {/* Fullscreen Preview Header */}
+        <div className="bg-gray-800 px-4 py-3 flex items-center justify-between">
+          <span className="text-white font-medium text-sm">Aperçu</span>
+          <button
+            onClick={() => setIsPreviewFullscreen(false)}
+            className="p-2 hover:bg-gray-700 rounded-lg transition text-white"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        {/* Fullscreen Preview Iframe */}
+        <iframe
+          ref={iframeRef}
+          srcDoc={output}
+          sandbox="allow-scripts allow-modals allow-same-origin"
+          className="flex-1 w-full bg-white border-none"
+          title="Fullscreen Preview"
+          loading="lazy"
+        />
       </div>
     );
   }
@@ -560,24 +590,22 @@ function PlaygroundContent() {
         
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
           {/* Add file button */}
-          <div className="relative group">
-            <button 
-              onClick={() => {
-                const types: FileType[] = ['html', 'css', 'javascript'];
-                const existing = currentProject.files.map(f => f.type);
-                const available = types.filter(t => !existing.includes(t));
-                if (available.length > 0) {
-                  addFile(available[0]);
-                } else {
-                  showToast('❌ Tous les types existent déjà', 'warning');
-                }
-              }}
-              className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
-              title="Ajouter un fichier"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+          <button 
+            onClick={() => {
+              const types: FileType[] = ['html', 'css', 'javascript'];
+              const existing = currentProject.files.map(f => f.type);
+              const available = types.filter(t => !existing.includes(t));
+              if (available.length > 0) {
+                addFile(available[0]);
+              } else {
+                showToast('❌ Tous les types existent déjà', 'warning');
+              }
+            }}
+            className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
+            title="Ajouter un fichier"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
           
           {/* Copy */}
           <button 
@@ -669,8 +697,8 @@ function PlaygroundContent() {
             ))}
           </div>
           
-          {/* Editor */}
-          <div className="flex-1 relative min-h-[200px] lg:min-h-0">
+          {/* Editor with proper mobile height */}
+          <div className="flex-1 relative min-h-[300px] sm:min-h-[400px] lg:min-h-0">
             <textarea
               ref={textareaRef}
               value={activeFile?.content || ''}
@@ -679,7 +707,7 @@ function PlaygroundContent() {
               className={`w-full h-full p-3 sm:p-4 font-mono text-xs sm:text-sm resize-none outline-none ${
                 isDark ? 'bg-gray-900 text-gray-200' : 'bg-white text-gray-900'
               }`}
-              style={{ fontSize: `${fontSize}px`, tabSize: 2 }}
+              style={{ fontSize: `${fontSize}px`, tabSize: 2, minHeight: '300px' }}
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"
@@ -721,13 +749,21 @@ function PlaygroundContent() {
         </div>
         
         {/* Preview section */}
-        <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] lg:min-h-0 ${isPreviewMode ? 'flex' : 'hidden lg:flex'} flex-col border-t lg:border-t-0 lg:border-l border-gray-700`}>
+        <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 ${isPreviewMode ? 'flex' : 'hidden lg:flex'} flex-col border-t lg:border-t-0 lg:border-l border-gray-700`}>
           <div className="bg-gray-800 border-b border-gray-700 px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Eye className="w-4 h-4" />
               <span className="hidden sm:inline">Aperçu</span>
             </div>
             <div className="flex items-center gap-2">
+              {/* ✅ Mobile fullscreen preview button */}
+              <button
+                onClick={togglePreviewFullscreen}
+                className="lg:hidden p-1 hover:bg-gray-700 rounded transition text-gray-400 hover:text-white"
+                title="Plein écran"
+              >
+                <Maximize className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => setIsPreviewMode(!isPreviewMode)}
                 className="lg:hidden text-xs text-gray-400 hover:text-white transition"
