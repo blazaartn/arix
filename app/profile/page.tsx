@@ -202,14 +202,15 @@ export default function ProfilePage() {
         }
     }, [status, router]);
 
-    // ✅ Fetch user posts - FIXED: Use userId parameter
+    // ✅ Fetch user posts - FIXED: Using dedicated API endpoint
     useEffect(() => {
         const fetchUserPosts = async () => {
             if (!session) return;
             
             setLoading(true);
             try {
-                const res = await fetch(`/api/questions?userId=${session.user.id}`);
+                // ✅ Using the dedicated user posts endpoint
+                const res = await fetch('/api/user/posts');
                 const data = await res.json();
                 
                 if (data.success) {
@@ -231,6 +232,7 @@ export default function ProfilePage() {
                 }
             } catch (error) {
                 console.error('Error fetching user posts:', error);
+                setToast({ message: 'Erreur lors du chargement des posts', type: 'error' });
             } finally {
                 setLoading(false);
             }
