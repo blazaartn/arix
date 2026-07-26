@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
     ArrowLeft, Heart, MessageCircle, Award, 
     Bell, CheckCircle, Loader2, X, User,
-    Calendar, Clock, Eye
+    Calendar, Clock, Eye, Check, Share2
 } from 'lucide-react';
+import { ToastProvider, useToast } from '@/contexts/ToastContext';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 
 interface Notification {
     id: string;
@@ -36,7 +39,6 @@ function formatTime(dateString: string): string {
     if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))} min`;
     if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))} h`;
     if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / (24 * 60 * 60 * 1000))} j`;
-    
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
@@ -55,15 +57,35 @@ const NotificationIcon = ({ type }: { type: Notification['type'] }) => {
     }
 };
 
-export default function NotificationsPage() {
+// ✅ Notification Skeleton
+function NotificationSkeleton() {
+    return (
+        <div className="block p-4 rounded-xl animate-pulse">
+            <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex-shrink-0"></div>
+                <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <div className="w-5 h-5 bg-gray-200 rounded"></div>
+                                <div className="h-3 bg-gray-200 rounded w-16"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function NotificationsContent() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [hasMore, setHasMore] = useState(false);
+    const { showToast } = useToast();
+    const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
-    const [markingAll, setMarkingAll] = useState(false);
+    const limit = 20;
 
     // ✅ Redirect if not logged in
     useEffect(() => {
@@ -72,87 +94,96 @@ export default function NotificationsPage() {
         }
     }, [status, router]);
 
-    // ✅ Fetch notifications
-    const fetchNotifications = async (reset = true) => {
-        if (!session) return;
-        
-        setLoading(true);
-        try {
-            const currentPage = reset ? 1 : page;
-            const url = `/api/notifications?limit=20&offset=${(currentPage - 1) * 20}`;
+    // ✅ Fetch notifications with React Query
+    const { 
+        data, 
+        isLoading, 
+        refetch,
+        isFetching 
+    } = useQuery({
+        queryKey: ['notifications', page],
+        queryFn: async () => {
+            if (!session) return { notifications: [], unreadCount: 0, hasMore: false };
+            
+            const url = `/api/notifications?limit=${limit}&offset=${(page - 1) * limit}`;
             const res = await fetch(url);
             const data = await res.json();
             
+            if (!data.success) throw new Error('Failed to fetch notifications');
+            return {
+                notifications: data.notifications || [],
+                unreadCount: data.unreadCount || 0,
+                hasMore: data.hasMore || false
+            };
+        },
+        staleTime: 10000,
+        enabled: !!session,
+        placeholderData: (previousData) => previousData,
+    });
+
+    const notifications = data?.notifications || [];
+    const unreadCount = data?.unreadCount || 0;
+    const hasMore = data?.hasMore || false;
+
+    // ✅ Mark all as read mutation
+    const markAllMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/notifications', { method: 'PUT' });
+            return res.json();
+        },
+        onSuccess: (data) => {
             if (data.success) {
-                if (reset) {
-                    setNotifications(data.notifications || []);
-                } else {
-                    setNotifications(prev => [...prev, ...(data.notifications || [])]);
-                }
-                setUnreadCount(data.unreadCount || 0);
-                setHasMore(data.hasMore || false);
-                if (reset) setPage(1);
+                queryClient.setQueryData(['notifications', page], (old: any) => ({
+                    ...old,
+                    notifications: old?.notifications?.map((n: Notification) => ({ ...n, is_read: true })) || [],
+                    unreadCount: 0
+                }));
+                showToast('Toutes les notifications sont lues', 'success');
             }
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
-        } finally {
-            setLoading(false);
+        },
+        onError: () => {
+            showToast('Erreur lors du marquage', 'error');
+        }
+    });
+
+    // ✅ Mark single as read mutation
+    const markReadMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await fetch(`/api/notifications?id=${id}`, { method: 'PUT' });
+        },
+        onSuccess: (_, id) => {
+            queryClient.setQueryData(['notifications', page], (old: any) => ({
+                ...old,
+                notifications: old?.notifications?.map((n: Notification) => 
+                    n.id === id ? { ...n, is_read: true } : n
+                ) || [],
+                unreadCount: Math.max(0, (old?.unreadCount || 0) - 1)
+            }));
+        }
+    });
+
+    const markAllAsRead = () => {
+        if (unreadCount === 0) {
+            showToast('Aucune notification non lue', 'info');
+            return;
+        }
+        markAllMutation.mutate();
+    };
+
+    const markAsRead = (id: string) => {
+        if (!notifications.find((n: { id: string; }) => n.id === id)?.is_read) {
+            markReadMutation.mutate(id);
         }
     };
 
-    useEffect(() => {
-        if (session) {
-            fetchNotifications(true);
-        }
-    }, [session]);
-
-    // ✅ Mark all as read
-    const markAllAsRead = async () => {
-        setMarkingAll(true);
-        try {
-            const res = await fetch('/api/notifications', {
-                method: 'PUT',
-            });
-            const data = await res.json();
-            if (data.success) {
-                setNotifications(notifications.map(n => ({ ...n, is_read: true })));
-                setUnreadCount(0);
-            }
-        } catch (error) {
-            console.error('Error marking all as read:', error);
-        } finally {
-            setMarkingAll(false);
-        }
-    };
-
-    // ✅ Mark single as read
-    const markAsRead = async (id: string) => {
-        try {
-            await fetch(`/api/notifications?id=${id}`, {
-                method: 'PUT',
-            });
-            setNotifications(notifications.map(n => 
-                n.id === id ? { ...n, is_read: true } : n
-            ));
-            setUnreadCount(prev => Math.max(0, prev - 1));
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-        }
-    };
-
-    // ✅ Load more
     const loadMore = () => {
-        const nextPage = page + 1;
-        setPage(nextPage);
-        fetchNotifications(false);
+        if (hasMore && !isFetching) {
+            setPage(prev => prev + 1);
+        }
     };
 
-    if (status === 'loading' || loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <Loader2 className="w-12 h-12 text-orange-500 animate-spin" />
-            </div>
-        );
+    if (status === 'loading') {
+        return <LoadingScreen />;
     }
 
     if (!session) {
@@ -184,10 +215,14 @@ export default function NotificationsPage() {
                     {unreadCount > 0 && (
                         <button
                             onClick={markAllAsRead}
-                            disabled={markingAll}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            disabled={markAllMutation.isPending}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition disabled:opacity-50"
                         >
-                            {markingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                            {markAllMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <CheckCircle className="w-4 h-4" />
+                            )}
                             Tout lire
                         </button>
                     )}
@@ -195,7 +230,16 @@ export default function NotificationsPage() {
             </header>
 
             <main className="max-w-3xl mx-auto px-4 py-6">
-                {notifications.length === 0 ? (
+                {/* ✅ Loading Skeletons */}
+                {isLoading ? (
+                    <div className="space-y-1">
+                        <NotificationSkeleton />
+                        <NotificationSkeleton />
+                        <NotificationSkeleton />
+                        <NotificationSkeleton />
+                        <NotificationSkeleton />
+                    </div>
+                ) : notifications.length === 0 ? (
                     <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
                         <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                         <p className="text-gray-500 font-medium">Aucune notification</p>
@@ -203,15 +247,11 @@ export default function NotificationsPage() {
                     </div>
                 ) : (
                     <div className="space-y-1">
-                        {notifications.map((notification) => (
+                        {notifications.map((notification: Notification) => (
                             <Link
                                 key={notification.id}
                                 href={notification.link || '#'}
-                                onClick={() => {
-                                    if (!notification.is_read) {
-                                        markAsRead(notification.id);
-                                    }
-                                }}
+                                onClick={() => markAsRead(notification.id)}
                                 className={`block p-4 rounded-xl hover:bg-gray-50 transition ${
                                     notification.is_read ? 'bg-white' : 'bg-blue-50/50 border-l-4 border-blue-500'
                                 }`}
@@ -255,15 +295,31 @@ export default function NotificationsPage() {
                 )}
 
                 {/* Load More */}
-                {hasMore && !loading && (
+                {hasMore && !isLoading && (
                     <button
                         onClick={loadMore}
-                        className="w-full mt-4 py-3 text-sm text-orange-500 hover:text-orange-600 font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+                        disabled={isFetching}
+                        className="w-full mt-4 py-3 text-sm text-orange-500 hover:text-orange-600 font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        Voir plus
+                        {isFetching ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Chargement...
+                            </>
+                        ) : (
+                            'Voir plus'
+                        )}
                     </button>
                 )}
             </main>
         </div>
+    );
+}
+
+export default function NotificationsPage() {
+    return (
+        <ToastProvider>
+            <NotificationsContent />
+        </ToastProvider>
     );
 }

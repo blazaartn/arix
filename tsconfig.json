@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "scripts/seed-users.cjs", "scripts/seed-posts.cjs", "scripts/seed-likes.cjs"  ],
   "exclude": ["node_modules"]
 }

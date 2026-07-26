@@ -14,7 +14,7 @@ declare module 'next-auth' {
             avatar_url: string;
             xp_points: number;
             level: number;
-            role: string; // ✅ Added role
+            role: string;
         }
     }
 }
@@ -25,7 +25,7 @@ declare module 'next-auth/jwt' {
         email?: string;
         name?: string;
         picture?: string;
-        role?: string; // ✅ Added role
+        role?: string;
     }
 }
 
@@ -46,20 +46,43 @@ export const authOptions: NextAuthOptions = {
                     const avatarUrl = user.image ?? undefined;
                     const userName = user.name ?? 'User';
                     
+                    // ✅ Check if user exists
                     const existingUser = await query(
                         'SELECT * FROM users WHERE email = $1',
                         [user.email]
                     );
 
                     if (existingUser.rows.length === 0) {
-                        // ✅ New user - default role is 'student'
-                        await query(
+                        // ✅ New user - create with default role
+                        const result = await query(
                             `INSERT INTO users (email, name, google_id, avatar_url, role)
-                             VALUES ($1, $2, $3, $4, $5)`,
+                             VALUES ($1, $2, $3, $4, $5)
+                             RETURNING id`,
                             [user.email, userName, googleId, avatarUrl, 'student']
                         );
+                        
+                        const userId = result.rows[0].id;
+                        
+                        // ✅ Add default todos for new user
+                        const defaultTodos = [
+                            { text: '📚 Réviser le cours du jour', dueDate: null },
+                            { text: '😴 Dormir au moins 7h', dueDate: null },
+                            { text: '📝 Corriger mes fautes de langue', dueDate: null },
+                            { text: '📖 Lire 15 minutes', dueDate: null },
+                            { text: '✅ Faire une to-do list pour demain', dueDate: null },
+                        ];
+                        
+                        for (const todo of defaultTodos) {
+                            await query(
+                                `INSERT INTO todos (user_id, text, due_date)
+                                 VALUES ($1, $2, $3)`,
+                                [userId, todo.text, todo.dueDate]
+                            );
+                        }
+                        
+                        console.log(`✅ Added default todos for new user: ${user.email}`);
                     } else {
-                        // ✅ Update existing user, but keep role if already set
+                        // ✅ Update existing user
                         await query(
                             `UPDATE users 
                              SET name = $1, google_id = $2, avatar_url = $3
@@ -70,6 +93,7 @@ export const authOptions: NextAuthOptions = {
                     
                     return true;
                 } catch (error) {
+                    console.error('SignIn error:', error);
                     return false;
                 }
             }
@@ -92,10 +116,10 @@ export const authOptions: NextAuthOptions = {
                         session.user.avatar_url = userData.avatar_url;
                         session.user.email = userData.email;
                         session.user.name = userData.name;
-                        session.user.role = userData.role || 'student'; // ✅ Added role
+                        session.user.role = userData.role || 'student';
                     }
                 } catch (error) {
-                    // Silent fail
+                    console.error('Session error:', error);
                 }
             }
             return session;
@@ -107,7 +131,6 @@ export const authOptions: NextAuthOptions = {
                 token.email = user.email ?? undefined;
                 token.name = user.name ?? undefined;
                 token.picture = user.image ?? undefined;
-                // ✅ We'll get role from database in session callback
             }
             return token;
         }

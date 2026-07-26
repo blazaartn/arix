@@ -1,17 +1,56 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { useState, memo, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Heart, MessageCircle, Share2, Clock, BookOpen, 
-  Loader2, X, Send, CheckCircle, Code
+  X, Send, Code, Loader2, ChevronRight, Trash2, Check
 } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
+import { useLikes } from '@/hooks/useLikes';
+import { useToast } from '@/contexts/ToastContext';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 
+interface Image {
+  id: string;
+  image_url: string;
+  caption: string;
+  is_primary: boolean;
+}
+
+interface Question {
+  id: string;
+  title: string;
+  content: string;
+  user_id: string;
+  subject_name: string;
+  author_name: string;
+  author_avatar: string;
+  author_role: string;
+  view_count: number;
+  created_at: string;
+  comments_count: number;
+  like_count: number;
+  images_count: number;
+  userLiked?: boolean;
+  image?: Image;
+  code_content?: string;
+  code_language?: string;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  user_id: string;
+  author_name: string;
+  author_avatar: string;
+  created_at: string;
+}
+
 interface QuestionCardProps {
-  question: any;
+  question: Question;
   isLoggedIn: boolean;
   currentUserId?: string;
   onRefresh: () => void;
@@ -19,10 +58,23 @@ interface QuestionCardProps {
 }
 
 function formatNumber(num: number): string {
-  if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toString();
+  const n = typeof num === 'number' ? num : parseInt(String(num)) || 0;
+  if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'B';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function formatTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  
+  if (diff < 60 * 1000) return 'À l\'instant';
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))} min`;
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))} h`;
+  if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / (24 * 60 * 60 * 1000))} j`;
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
@@ -58,24 +110,35 @@ export const QuestionCard = memo(function QuestionCard({
   onImageClick 
 }: QuestionCardProps) {
   const { data: session } = useSession();
+  const router = useRouter();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
-  
-  // Fetch like status
-  const { data: likeData, refetch: refetchLikes } = useQuery({
-    queryKey: ['likes', question.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/likes?questionId=${question.id}`);
-      return res.json();
-    },
-    staleTime: 10000,
-    enabled: isLoggedIn,
-    initialData: { count: question.like_count || 0, liked: false }
-  });
+  const [shareCopied, setShareCopied] = useState(false);
 
-  // Fetch comments
-  const { data: commentsData, refetch: refetchComments, isLoading: loadingComments } = useQuery({
+  const { 
+    count: likesCount, 
+    liked, 
+    toggleLike,
+    refreshFromServer
+  } = useLikes(
+    question.id,
+    question.like_count || 0,
+    question.userLiked || false
+  );
+
+  useEffect(() => {
+    if (session) {
+      refreshFromServer();
+    }
+  }, [session, refreshFromServer]);
+
+  const { 
+    data: comments = [], 
+    isLoading: loadingComments, 
+    refetch: refetchComments 
+  } = useQuery({
     queryKey: ['comments', question.id],
     queryFn: async () => {
       const res = await fetch(`/api/comments?questionId=${question.id}`);
@@ -86,30 +149,6 @@ export const QuestionCard = memo(function QuestionCard({
     staleTime: 30000,
   });
 
-  // Like mutation
-  const likeMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/likes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId: question.id })
-      });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      // Update like data optimistically
-      queryClient.setQueryData(['likes', question.id], (old: any) => ({
-        ...old,
-        count: data.liked ? (old?.count || 0) + 1 : (old?.count || 0) - 1,
-        liked: data.liked
-      }));
-      // Invalidate questions list to update counts
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
-      onRefresh();
-    }
-  });
-
-  // Comment mutation
   const commentMutation = useMutation({
     mutationFn: async (content: string) => {
       const res = await fetch('/api/comments', {
@@ -119,52 +158,132 @@ export const QuestionCard = memo(function QuestionCard({
       });
       return res.json();
     },
-    onSuccess: () => {
-      refetchComments();
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
-      onRefresh();
-    }
+    onSuccess: (data) => {
+      if (data.success) {
+        setNewComment('');
+        showToast('Commentaire ajouté !', 'success');
+        refetchComments();
+        queryClient.invalidateQueries({ queryKey: ['questions'] });
+        onRefresh();
+      } else {
+        showToast(data.error || 'Erreur', 'error');
+      }
+    },
+    onError: () => {
+      showToast('Erreur lors de l\'ajout du commentaire', 'error');
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId: string) => {
+      const res = await fetch(`/api/comments?id=${commentId}`, { method: 'DELETE' });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        showToast('Commentaire supprimé', 'success');
+        refetchComments();
+        queryClient.invalidateQueries({ queryKey: ['questions'] });
+        onRefresh();
+      } else {
+        showToast(data.error || 'Erreur', 'error');
+      }
+    },
+    onError: () => {
+      showToast('Erreur lors de la suppression', 'error');
+    },
   });
 
   const handleLike = () => {
-    if (!isLoggedIn) return;
-    likeMutation.mutate();
+    if (!isLoggedIn) {
+      showToast('Connectez-vous pour aimer', 'warning');
+      return;
+    }
+    toggleLike();
   };
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !isLoggedIn) return;
+    if (!newComment.trim()) {
+      showToast('Écrivez un commentaire', 'warning');
+      return;
+    }
+    if (!isLoggedIn) {
+      showToast('Connectez-vous pour commenter', 'warning');
+      return;
+    }
     commentMutation.mutate(newComment.trim());
-    setNewComment('');
   };
 
-  const handleDeleteComment = async (commentId: string) => {
+  const handleDeleteComment = (commentId: string) => {
     if (!confirm('Supprimer ce commentaire ?')) return;
-    const res = await fetch(`/api/comments?id=${commentId}`, { method: 'DELETE' });
-    if (res.ok) {
-      refetchComments();
-      onRefresh();
+    deleteCommentMutation.mutate(commentId);
+  };
+
+  const handleViewDetails = () => {
+    router.push(`/questions/${question.id}`);
+  };
+
+  // ✅ Share functionality
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/questions/${question.id}`;
+    const title = question.title || 'Question sur bacplus';
+    
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: title,
+          text: `Voir cette question sur bacplus: ${title}`,
+          url: url,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      showToast('🔗 Lien copié dans le presse-papier !', 'success');
+      setTimeout(() => setShareCopied(false), 3000);
+    } catch {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setShareCopied(true);
+        showToast('🔗 Lien copié dans le presse-papier !', 'success');
+        setTimeout(() => setShareCopied(false), 3000);
+      } catch {
+        showToast('Impossible de copier le lien', 'error');
+      }
     }
   };
 
-  const likes = likeData || { count: 0, liked: false };
-  const comments = commentsData || [];
-
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-      {/* Author */}
+      {/* Author - Clickable */}
       <div className="flex items-center gap-3 p-4 pb-2">
-        <img 
-          src={question.author_avatar || '/default-avatar.png'} 
-          alt={question.author_name} 
-          className="w-10 h-10 rounded-full border-2 border-orange-500/20 object-cover" 
-          onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }} 
-        />
+        <Link 
+          href={`/profile/${question.user_id}`} 
+          className="flex-shrink-0"
+        >
+          <img 
+            src={question.author_avatar || '/default-avatar.png'} 
+            alt={question.author_name} 
+            className="w-10 h-10 rounded-full border-2 border-orange-500/20 object-cover hover:border-orange-500 transition" 
+            onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }} 
+          />
+        </Link>
         <div>
-          <p className="font-medium text-gray-900 text-sm flex items-center gap-1.5">
+          <Link 
+            href={`/profile/${question.user_id}`} 
+            className="font-medium text-gray-900 text-sm flex items-center gap-1.5 hover:text-orange-500 transition"
+          >
             {question.author_name || 'Anonyme'}
             <VerifiedBadge role={question.author_role || 'student'} size="sm" />
-          </p>
+          </Link>
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <span className="flex items-center gap-1">
               <BookOpen className="w-3 h-3" />
@@ -173,9 +292,7 @@ export const QuestionCard = memo(function QuestionCard({
             <span>•</span>
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              {new Date(question.created_at).toLocaleDateString('fr-FR', { 
-                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-              })}
+              {formatTime(question.created_at)}
             </span>
           </div>
         </div>
@@ -198,7 +315,7 @@ export const QuestionCard = memo(function QuestionCard({
 
       {/* Image */}
       {question.image && (
-        <div className="px-4 pb-2 cursor-pointer" onClick={() => onImageClick(question.image.image_url)}>
+        <div className="px-4 pb-2 cursor-pointer" onClick={() => onImageClick(question.image!.image_url)}>
           <img 
             src={question.image.image_url} 
             alt="Image" 
@@ -208,39 +325,57 @@ export const QuestionCard = memo(function QuestionCard({
         </div>
       )}
 
-      {/* Read More */}
+      {/* View Details */}
       <div className="px-4 pb-3">
-        <Link 
-          href={`/questions/${question.id}`} 
-          className="inline-block text-sm font-medium text-orange-500 hover:text-orange-600 transition group"
+        <button 
+          onClick={handleViewDetails}
+          className="inline-flex items-center gap-1 text-sm font-medium text-orange-500 hover:text-orange-600 transition group"
         >
-          <span className="flex items-center gap-1">
-            Voir plus → 
-            <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
-          </span>
-        </Link>
+          <span>Voir plus</span>
+          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+        </button>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-50">
         <button 
           onClick={handleLike} 
-          disabled={likeMutation.isPending} 
-          className={`flex items-center gap-1 text-sm transition ${likes.liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'} ${likeMutation.isPending ? 'opacity-50' : ''}`}
+          disabled={!isLoggedIn}
+          className={`
+            flex items-center gap-1 text-sm transition-all duration-200
+            ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}
+            cursor-pointer
+          `}
         >
-          {likeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={`w-4 h-4 ${likes.liked ? 'fill-red-500' : ''}`} />}
-          <span>{formatNumber(likes.count)}</span>
+          <Heart className={`w-4 h-4 transition-all duration-200 ${liked ? 'fill-red-500 scale-110' : ''}`} />
+          <span className="font-medium">{formatNumber(likesCount)}</span>
         </button>
+        
         <button 
-          onClick={() => { if (!isLoggedIn) return; setShowComments(!showComments); }} 
+          onClick={() => { 
+            if (!isLoggedIn) {
+              showToast('Connectez-vous pour commenter', 'warning');
+              return;
+            }
+            setShowComments(!showComments); 
+          }} 
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-orange-500 transition"
         >
           <MessageCircle className="w-4 h-4" />
           <span>{formatNumber(question.comments_count || 0)}</span>
         </button>
-        <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-orange-500 transition">
-          <Share2 className="w-4 h-4" />
+        
+        {/* ✅ Fixed Share Button */}
+        <button 
+          onClick={handleShare}
+          className={`flex items-center gap-1 text-sm transition ${
+            shareCopied ? 'text-green-500' : 'text-gray-500 hover:text-orange-500'
+          }`}
+          title="Partager"
+        >
+          {shareCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
         </button>
+        
         {!isLoggedIn && (
           <button 
             onClick={() => signIn('google', { callbackUrl: '/' })} 
@@ -256,18 +391,19 @@ export const QuestionCard = memo(function QuestionCard({
         <div className="px-4 pb-4 pt-2 border-t border-gray-100">
           <div className="space-y-3 max-h-60 overflow-y-auto mb-3">
             {loadingComments ? (
-              <div className="text-center py-2">
+              <div className="text-center py-4">
                 <Loader2 className="w-5 h-5 animate-spin mx-auto text-orange-500" />
               </div>
             ) : comments.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-2">Aucun commentaire</p>
+              <p className="text-sm text-gray-400 text-center py-4">Aucun commentaire</p>
             ) : (
-              comments.map((c: any) => (
+              comments.map((c: Comment) => (
                 <div key={c.id} className="flex gap-2 group">
                   <img 
                     src={c.author_avatar || '/default-avatar.png'} 
                     alt="" 
                     className="w-8 h-8 rounded-full flex-shrink-0" 
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
                   />
                   <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 relative">
                     <div className="flex items-center justify-between">
@@ -275,23 +411,27 @@ export const QuestionCard = memo(function QuestionCard({
                       {currentUserId === c.user_id && (
                         <button 
                           onClick={() => handleDeleteComment(c.id)} 
-                          className="text-gray-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                          disabled={deleteCommentMutation.isPending}
+                          className="text-gray-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100 disabled:opacity-50"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          {deleteCommentMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
                         </button>
                       )}
                     </div>
                     <p className="text-sm text-gray-600">{c.content}</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      {new Date(c.created_at).toLocaleDateString('fr-FR', { 
-                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-                      })}
+                      {formatTime(c.created_at)}
                     </p>
                   </div>
                 </div>
               ))
             )}
           </div>
+
           <form onSubmit={handleCommentSubmit} className="flex gap-2">
             <input 
               type="text" 
@@ -299,6 +439,7 @@ export const QuestionCard = memo(function QuestionCard({
               onChange={(e) => setNewComment(e.target.value)} 
               placeholder="Écrire un commentaire..." 
               className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent" 
+              disabled={commentMutation.isPending}
             />
             <button 
               type="submit" 

@@ -14,8 +14,9 @@ import {
     Info
 } from 'lucide-react';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { useToast } from '@/contexts/ToastContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 
-// ✅ Types
 interface UserPost {
     id: string;
     title: string;
@@ -65,7 +66,6 @@ function formatTimeAgo(dateString: string): string {
     return formatDate(dateString);
 }
 
-// ✅ Toast Component
 function Toast({ 
     message, 
     type, 
@@ -107,7 +107,6 @@ function Toast({
     );
 }
 
-// ✅ Post Skeleton
 function PostSkeleton() {
     return (
         <div className="bg-white rounded-xl border border-gray-100 p-4 animate-pulse">
@@ -130,7 +129,6 @@ function PostSkeleton() {
     );
 }
 
-// ✅ Delete Post Modal
 function DeleteModal({ 
     isOpen, 
     onClose, 
@@ -175,9 +173,10 @@ function DeleteModal({
     );
 }
 
-export default function ProfilePage() {
+function ProfileContent() {
     const { data: session, status } = useSession();
     const router = useRouter();
+    const { showToast } = useToast();
     const [posts, setPosts] = useState<UserPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [deleting, setDeleting] = useState<string | null>(null);
@@ -195,29 +194,27 @@ export default function ProfilePage() {
         joinDate: ''
     });
 
-    // ✅ Redirect if not logged in
     useEffect(() => {
         if (status === 'unauthenticated') {
             router.push('/auth/signin');
         }
     }, [status, router]);
 
-    // ✅ Fetch user posts - FIXED: Using dedicated API endpoint
     useEffect(() => {
         const fetchUserPosts = async () => {
             if (!session) return;
             
             setLoading(true);
             try {
-                // ✅ Using the dedicated user posts endpoint
                 const res = await fetch('/api/user/posts');
                 const data = await res.json();
                 
+                console.log('📊 Profile API response:', data);
+                
                 if (data.success) {
-                    setPosts(data.questions || []);
-                    
-                    // Calculate stats
                     const userPosts = data.questions || [];
+                    setPosts(userPosts);
+                    
                     const totalLikes = userPosts.reduce((acc: number, p: UserPost) => acc + (p.like_count || 0), 0);
                     const totalComments = userPosts.reduce((acc: number, p: UserPost) => acc + (p.comments_count || 0), 0);
                     const totalViews = userPosts.reduce((acc: number, p: UserPost) => acc + (p.view_count || 0), 0);
@@ -229,9 +226,12 @@ export default function ProfilePage() {
                         totalViews,
                         joinDate: session.user.created_at || new Date().toISOString()
                     });
+                } else {
+                    console.error('❌ API error:', data.error);
+                    setToast({ message: data.error || 'Erreur lors du chargement des posts', type: 'error' });
                 }
             } catch (error) {
-                console.error('Error fetching user posts:', error);
+                console.error('❌ Error fetching user posts:', error);
                 setToast({ message: 'Erreur lors du chargement des posts', type: 'error' });
             } finally {
                 setLoading(false);
@@ -241,7 +241,6 @@ export default function ProfilePage() {
         fetchUserPosts();
     }, [session]);
 
-    // ✅ Delete post
     const handleDeletePost = async () => {
         if (!deleteModal.postId) return;
         
@@ -254,7 +253,6 @@ export default function ProfilePage() {
             const data = await res.json();
             
             if (data.success) {
-                // ✅ Remove post from state
                 setPosts(posts.filter(p => p.id !== deleteModal.postId));
                 setStats(prev => ({
                     ...prev,
@@ -286,7 +284,6 @@ export default function ProfilePage() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
-            {/* Toast */}
             {toast && (
                 <Toast 
                     message={toast.message} 
@@ -295,7 +292,6 @@ export default function ProfilePage() {
                 />
             )}
 
-            {/* Delete Modal */}
             <DeleteModal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, postId: '', title: '' })}
@@ -304,7 +300,6 @@ export default function ProfilePage() {
                 message="Cette action est irréversible. Tous les commentaires et likes associés seront également supprimés."
             />
 
-            {/* Header */}
             <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-4 py-3">
                 <div className="flex items-center justify-between max-w-4xl mx-auto">
                     <div className="flex items-center gap-3">
@@ -327,14 +322,11 @@ export default function ProfilePage() {
             </header>
 
             <main className="max-w-4xl mx-auto px-4 py-6">
-                {/* ✅ Profile Card - Banner + Info */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-                    {/* Banner */}
                     <div className="relative h-32 md:h-40 bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600">
                         <div className="absolute inset-0 bg-black/10"></div>
                         <div className="absolute bottom-0 left-0 right-0 px-6 pb-4">
                             <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
-                                {/* Avatar */}
                                 <div className="relative -mt-12">
                                     <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-white">
                                         <img 
@@ -349,7 +341,6 @@ export default function ProfilePage() {
                                     <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
                                 </div>
 
-                                {/* User Info */}
                                 <div className="flex-1 text-white">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h2 className="text-xl md:text-2xl font-bold">
@@ -373,7 +364,6 @@ export default function ProfilePage() {
                                     </div>
                                 </div>
 
-                                {/* XP Badge */}
                                 <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20">
                                     <Award className="w-5 h-5 text-yellow-300" />
                                     <div>
@@ -388,7 +378,6 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
-                {/* ✅ Stats Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
                         <div className="text-2xl font-bold text-orange-500">{stats.totalPosts}</div>
@@ -408,7 +397,6 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
-                {/* ✅ User Posts */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -445,7 +433,6 @@ export default function ProfilePage() {
                                     key={post.id}
                                     className="bg-gray-50 rounded-xl p-4 hover:shadow-md transition-all duration-300 border border-transparent hover:border-gray-200 relative group"
                                 >
-                                    {/* ✅ Link wrapper - only wraps the content, not the delete button */}
                                     <div className="flex items-start justify-between">
                                         <Link href={`/questions/${post.id}`} className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
@@ -482,7 +469,6 @@ export default function ProfilePage() {
                                             </div>
                                         </Link>
                                         
-                                        {/* ✅ Delete Button - Outside the Link, always visible on hover */}
                                         <div className="flex-shrink-0 ml-2">
                                             <button
                                                 onClick={(e) => {
@@ -512,5 +498,13 @@ export default function ProfilePage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+export default function ProfilePage() {
+    return (
+        <ToastProvider>
+            <ProfileContent />
+        </ToastProvider>
     );
 }

@@ -5,7 +5,6 @@ import { query } from '../../../lib/db';
 import { addXP, XP_RULES } from '../../../lib/xp';
 import { createNotification } from '../../../lib/notifications';
 
-// GET - Get like count and user like status (optimized with indexes)
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,20 +14,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
     }
 
-    // ✅ Single query with both count and user status (if logged in)
-    const session = await getServerSession(authOptions);
-    
-    let count = 0;
-    let userLiked = false;
-
-    // Get count (indexed query - should be fast after adding index)
     const countResult = await query(
       'SELECT COUNT(*) as count FROM likes WHERE question_id = $1',
       [questionId]
     );
-    count = parseInt(countResult.rows[0].count);
 
-    // Get user status if logged in
+    let userLiked = false;
+    const session = await getServerSession(authOptions);
     if (session) {
       const userResult = await query(
         'SELECT 1 FROM likes WHERE user_id = $1 AND question_id = $2 LIMIT 1',
@@ -37,18 +29,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       userLiked = userResult.rows.length > 0;
     }
 
+    // ✅ Force number return
     return NextResponse.json({ 
-      count, 
-      liked: userLiked 
+      count: parseInt(countResult.rows[0].count) || 0,
+      liked: Boolean(userLiked)
     });
   } catch (error) {
     console.error('Error fetching likes:', error);
-    // Return safe fallback
     return NextResponse.json({ count: 0, liked: false });
   }
 }
 
-// POST - Toggle like (rest remains the same)
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -105,9 +96,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    return NextResponse.json({ liked });
+    const countResult = await query(
+      'SELECT COUNT(*) as count FROM likes WHERE question_id = $1',
+      [questionId]
+    );
+
+    // ✅ Force number return
+    return NextResponse.json({ 
+      liked: Boolean(liked), 
+      count: parseInt(countResult.rows[0].count) || 0
+    });
+
   } catch (error) {
     console.error('Error toggling like:', error);
-    return NextResponse.json({ error: 'Erreur lors de l\'action' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Erreur lors de l\'action',
+      liked: false,
+      count: 0
+    }, { status: 500 });
   }
 }
