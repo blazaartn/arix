@@ -3,27 +3,32 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap", // Add this
+  preload: true, // Add this
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap", // Add this
+  preload: true, // Add this
 });
 
 export const metadata: Metadata = {
   title: "bacplus - Plateforme d'entraide pour le Bac Tunisien",
-  description: "Rejoignez la communauté bacplus pour poser des questions, partager des cours, et collaborer sur des projets. Plateforme d'entraide pour les étudiants du Bac Tunisien.",
-  keywords: "bac, bacplus, bac tunisien, entraide, questions, cours, projets, révision, examens, série, exercices, mathématiques, physique, chimie, SVT, informatique, anglais, français, arabe, philosophie, histoire, géographie",
+  description: "Rejoignez la communauté bacplus pour poser des questions, partager des cours, et collaborer sur des projets.",
+  keywords: "bac, bacplus, bac tunisien, entraide, questions, cours",
   authors: [{ name: "bacplus" }],
   creator: "bacplus",
   publisher: "bacplus",
   robots: "index, follow",
   openGraph: {
     title: "bacplus - Plateforme d'entraide pour le Bac Tunisien",
-    description: "Rejoignez la communauté bacplus pour poser des questions, partager des cours, et collaborer sur des projets. Entraide pour les étudiants du Bac Tunisien.",
+    description: "Rejoignez la communauté bacplus pour poser des questions, partager des cours, et collaborer sur des projets.",
     url: "https://bacpluss.vercel.app",
     siteName: "bacplus",
     locale: "fr_FR",
@@ -44,7 +49,7 @@ export const metadata: Metadata = {
     images: ["https://bacpluss.vercel.app/og-image.png"],
   },
   verification: {
-    google: "your-google-site-verification-code", // Add when you have it
+    google: "your-google-site-verification-code",
   },
   category: "education",
   classification: "Educational Platform",
@@ -62,9 +67,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-        {children}
+          {children}
         </Providers>
-        </body>
+      </body>
     </html>
   );
 }

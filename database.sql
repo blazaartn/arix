@@ -281,3 +281,15 @@ CREATE INDEX IF NOT EXISTS idx_likes_comment_user ON likes(comment_id, user_id);
 -- For notifications
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+
+-- 🔥 CRITICAL FIX: Add indexes for likes table
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_likes_question_id ON likes(question_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_likes_comment_id ON likes(comment_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_likes_user_question ON likes(user_id, question_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_likes_user_comment ON likes(user_id, comment_id);
+
+-- Other important indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_questions_created_at ON questions(created_at DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_questions_user_id ON questions(user_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_comments_question_id ON comments(question_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
