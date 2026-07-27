@@ -14,8 +14,6 @@ import { Sidebar } from '@/components/Sidebar';
 import { QuestionFeed } from '@/components/QuestionFeed';
 import { QuestionModal } from '@/components/QuestionModal';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { useToast } from '@/contexts/ToastContext';
-import { ToastProvider } from '@/contexts/ToastContext';
 import { clearLikesCache } from '@/hooks/useLikes';
 
 function formatNumber(num: number): string {
@@ -28,7 +26,6 @@ function formatNumber(num: number): string {
 // Menu Drawer
 function MenuDrawer({ isOpen, onClose, session, onLogout }: { isOpen: boolean; onClose: () => void; session: any; onLogout: () => void }) {
   const router = useRouter();
-  const { showToast } = useToast();
   
   if (!isOpen) return null;
   
@@ -58,7 +55,6 @@ function MenuDrawer({ isOpen, onClose, session, onLogout }: { isOpen: boolean; o
         onClick={onClose} 
       />
       <div className={`fixed top-0 right-0 z-[201] h-full w-80 bg-white shadow-2xl transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        {/* User Info */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -84,7 +80,6 @@ function MenuDrawer({ isOpen, onClose, session, onLogout }: { isOpen: boolean; o
           </div>
         </div>
 
-        {/* Menu Items */}
         <div className="p-3 space-y-1">
           {menuItems.map((item) => (
             <button 
@@ -131,7 +126,6 @@ function ImageViewer({ imageUrl, isOpen, onClose }: { imageUrl: string | null; i
 function HomeContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { showToast } = useToast();
   
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -149,7 +143,6 @@ function HomeContent() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // ✅ Fixed: Silent fail for unread count
   useEffect(() => {
     if (!session) return;
     
@@ -162,7 +155,7 @@ function HomeContent() {
           setUnreadCount(data.unreadCount || 0);
         }
       } catch {
-        // Silent fail - not critical
+        // Silent fail
       }
     };
 
@@ -171,7 +164,6 @@ function HomeContent() {
     return () => clearInterval(interval);
   }, [session]);
 
-  // ✅ Fetch questions
   const { 
     data: questionsData, 
     isLoading, 
@@ -187,9 +179,8 @@ function HomeContent() {
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch');
         return res.json();
-      } catch (error) {
-        showToast('Erreur de chargement des questions', 'error');
-        throw error;
+      } catch {
+        throw new Error('Failed to fetch');
       } finally {
         setIsSearching(false);
       }
@@ -199,7 +190,6 @@ function HomeContent() {
     retry: 2,
   });
 
-  // ✅ Fetch sidebar data
   const { data: sidebarData, isLoading: sidebarLoading } = useQuery({
     queryKey: ['sidebar', session?.user?.id],
     queryFn: async () => {
@@ -241,22 +231,19 @@ function HomeContent() {
     try {
       clearLikesCache();
       await signOut({ callbackUrl: '/' });
-      showToast('Déconnecté avec succès', 'success');
     } catch (error) {
-      showToast('Erreur lors de la déconnexion', 'error');
+      console.error('Logout error:', error);
     }
   };
 
   const handleQuestionCreated = () => {
     refetch();
-    showToast('Question publiée avec succès ! +50 XP', 'success');
   };
 
   if (status === 'loading') {
     return <LoadingScreen />;
   }
 
-  // ✅ Calculate total pages properly
   const totalQuestions = questionsData?.totalCount || questionsData?.questions?.length || 0;
   const totalPages = Math.ceil(totalQuestions / limit) || 1;
 
@@ -273,7 +260,6 @@ function HomeContent() {
 
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex gap-6">
-          {/* ✅ Sidebar - Self-contained */}
           <aside className="hidden lg:block w-[28%] flex-shrink-0 space-y-4">
             <Sidebar 
               session={session}
@@ -283,7 +269,6 @@ function HomeContent() {
           </aside>
 
           <main className="flex-1 min-w-0">
-            {/* Mobile XP Bar */}
             {!isLoading && session && (
               <div className="lg:hidden">
                 <div className="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
@@ -303,14 +288,12 @@ function HomeContent() {
               </div>
             )}
 
-            {/* Guest Banner (mobile) */}
             {!isLoading && !session && (
               <div className="lg:hidden bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-center">
                 <p className="text-xs text-gray-600">👋 Connectez-vous pour interagir</p>
               </div>
             )}
 
-            {/* Question Feed */}
             <QuestionFeed 
               questions={questionsData?.questions || []}
               loading={isLoading || isFetching}
@@ -328,7 +311,6 @@ function HomeContent() {
         </div>
       </div>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 px-2 py-1 flex justify-around items-center shadow-lg">
         <button onClick={() => router.push('/')} className="flex flex-col items-center py-1 px-3 text-orange-500 transition">
           <Home className="w-6 h-6" />
@@ -339,10 +321,7 @@ function HomeContent() {
           <span className="text-[10px] font-medium mt-0.5">Séries</span>
         </button>
         <button onClick={() => {
-          if (!session) {
-            showToast('Connectez-vous pour poser une question', 'warning');
-            return;
-          }
+          if (!session) return;
           setIsQuestionModalOpen(true);
         }} className="relative -mt-4 flex flex-col items-center transition-transform hover:scale-110">
           <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 transition-all duration-300">
@@ -356,7 +335,6 @@ function HomeContent() {
         </button>
       </nav>
 
-      {/* Modals */}
       <QuestionModal 
         isOpen={isQuestionModalOpen} 
         onClose={() => setIsQuestionModalOpen(false)} 
@@ -378,9 +356,5 @@ function HomeContent() {
 }
 
 export default function HomePage() {
-  return (
-    <ToastProvider>
-      <HomeContent />
-    </ToastProvider>
-  );
+  return <HomeContent />;
 }
