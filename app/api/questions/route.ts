@@ -3,11 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../lib/auth';
 import { query } from '../../../lib/db';
 import { addXP, XP_RULES } from '../../../lib/xp';
-import { getCached, CACHE_TTL, invalidateCache, getCacheKey } from '../../../lib/cache';
+import { getCached } from '../../../lib/cache';
 
-// ============================================
-// GET - Fetch all questions OR single question with optimizations
-// ============================================
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
@@ -17,20 +14,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // ✅ Single question with caching
+    // Single question with caching
     if (id) {
-      const cacheKey = getCacheKey('question', { id });
+      const cacheKey = `question:${id}`;
       
       const questionData = await getCached(
         cacheKey,
         async () => {
-          // Increment view count (don't cache this)
           await query(
             'UPDATE questions SET view_count = view_count + 1 WHERE id = $1',
             [id]
           );
 
-          // Optimized single query with all data
           const result = await query(`
             SELECT 
               q.id,
@@ -69,7 +64,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             return null;
           }
 
-          // Get comments with their images in one query
           const commentsResult = await query(`
             SELECT 
               c.id,
@@ -95,7 +89,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             ORDER BY c.created_at ASC
           `, [id]);
 
-          // Check if user liked
           const session = await getServerSession(authOptions);
           let userLiked = false;
           if (session) {
@@ -112,7 +105,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             userLiked
           };
         },
-        CACHE_TTL.QUESTION_DETAIL
+        300
       );
 
       if (!questionData) {
@@ -128,91 +121,75 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // ✅ List of questions with caching
-    const cacheKey = getCacheKey('questions', { search, sort, limit, offset });
-    
-    const { questions, hasMore } = await getCached(
-      cacheKey,
-      async () => {
-        // Build optimized query with JSON aggregation
-        let queryText = `
-          SELECT 
-            q.id,
-            q.title,
-            q.content,
-            q.user_id,
-            q.subject_name,
-            q.code_content,
-            q.code_language,
-            q.view_count,
-            q.created_at,
-            q.updated_at,
-            u.name as author_name,
-            u.avatar_url as author_avatar,
-            u.role as author_role,
-            (SELECT COUNT(*) FROM comments WHERE question_id = q.id) as comments_count,
-            (SELECT COUNT(*) FROM likes WHERE question_id = q.id) as like_count,
-            (SELECT COUNT(*) FROM images WHERE question_id = q.id) as images_count,
-            (
-              SELECT json_build_object(
-                'id', i.id,
-                'image_url', i.image_url,
-                'is_primary', i.is_primary
-              )
-              FROM images i 
-              WHERE i.question_id = q.id 
-              ORDER BY i.upload_order ASC 
-              LIMIT 1
-            ) as image
-          FROM questions q
-          LEFT JOIN users u ON q.user_id = u.id
-        `;
+    // List of questions
+    let queryText = `
+      SELECT 
+        q.id,
+        q.title,
+        q.content,
+        q.user_id,
+        q.subject_name,
+        q.code_content,
+        q.code_language,
+        q.view_count,
+        q.created_at,
+        q.updated_at,
+        u.name as author_name,
+        u.avatar_url as author_avatar,
+        u.role as author_role,
+        (SELECT COUNT(*) FROM comments WHERE question_id = q.id) as comments_count,
+        (SELECT COUNT(*) FROM likes WHERE question_id = q.id) as like_count,
+        (SELECT COUNT(*) FROM images WHERE question_id = q.id) as images_count,
+        (
+          SELECT json_build_object(
+            'id', i.id,
+            'image_url', i.image_url,
+            'is_primary', i.is_primary
+          )
+          FROM images i 
+          WHERE i.question_id = q.id 
+          ORDER BY i.upload_order ASC 
+          LIMIT 1
+        ) as image
+      FROM questions q
+      LEFT JOIN users u ON q.user_id = u.id
+    `;
 
-        const params: any[] = [];
-        const conditions: string[] = [];
+    const params: any[] = [];
+    const conditions: string[] = [];
 
-        // Search with full-text search for better performance
-        if (search) {
-          conditions.push(`(
-            q.title ILIKE $${params.length + 1} OR 
-            q.content ILIKE $${params.length + 1} OR 
-            q.subject_name ILIKE $${params.length + 1}
-          )`);
-          params.push(`%${search}%`);
-        }
+    if (search) {
+      conditions.push(`(
+        q.title ILIKE $${params.length + 1} OR 
+        q.content ILIKE $${params.length + 1} OR 
+        q.subject_name ILIKE $${params.length + 1}
+      )`);
+      params.push(`%${search}%`);
+    }
 
-        if (conditions.length > 0) {
-          queryText += ` WHERE ${conditions.join(' AND ')}`;
-        }
+    if (conditions.length > 0) {
+      queryText += ` WHERE ${conditions.join(' AND ')}`;
+    }
 
-        queryText += ` GROUP BY q.id, u.id`;
+    queryText += ` GROUP BY q.id, u.id`;
 
-        // Sorting with indexes
-        if (sort === 'popular') {
-          queryText += ` ORDER BY like_count DESC, q.created_at DESC`;
-        } else if (sort === 'unanswered') {
-          queryText += ` HAVING (SELECT COUNT(*) FROM comments WHERE question_id = q.id) = 0 ORDER BY q.created_at DESC`;
-        } else {
-          queryText += ` ORDER BY q.created_at DESC`;
-        }
+    if (sort === 'popular') {
+      queryText += ` ORDER BY like_count DESC, q.created_at DESC`;
+    } else if (sort === 'unanswered') {
+      queryText += ` HAVING (SELECT COUNT(*) FROM comments WHERE question_id = q.id) = 0 ORDER BY q.created_at DESC`;
+    } else {
+      queryText += ` ORDER BY q.created_at DESC`;
+    }
 
-        queryText += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-        params.push(limit, offset);
+    queryText += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
 
-        const result = await query(queryText, params);
-        
-        return {
-          questions: result.rows || [],
-          hasMore: result.rows.length === limit
-        };
-      },
-      CACHE_TTL.QUESTIONS_LIST
-    );
+    const result = await query(queryText, params);
 
     return NextResponse.json({ 
       success: true, 
-      questions: questions || [],
-      hasMore: hasMore || false
+      questions: result.rows || [],
+      hasMore: result.rows.length === limit
     });
 
   } catch (error) {
@@ -225,9 +202,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-// ============================================
-// POST - Create a new question
-// ============================================
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
   
@@ -263,7 +237,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Insert question
     const result = await query(
       `INSERT INTO questions (user_id, title, content, subject_name, code_content, code_language)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -273,7 +246,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const question = result.rows[0];
 
-    // Link images
     if (imageIds && Array.isArray(imageIds) && imageIds.length > 0) {
       for (const imageId of imageIds) {
         await query(
@@ -283,13 +255,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Add XP
     await addXP(session.user.id, XP_RULES.ASK_QUESTION, 'ask_question', question.id);
 
-    // Invalidate cache
-    await invalidateCache('questions:*');
-
-    // Get full question with author
     const questionWithAuthor = await query(
       `SELECT 
         q.*,
@@ -327,9 +294,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-// ============================================
-// PUT - Update a question
-// ============================================
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
   
@@ -365,7 +329,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Check ownership
     const question = await query(
       'SELECT user_id FROM questions WHERE id = $1',
       [id]
@@ -393,7 +356,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       [title.trim(), content.trim(), subjectName?.trim() || null, codeContent?.trim() || null, codeLanguage || 'javascript', id]
     );
 
-    // Handle images
     if (imageIds && Array.isArray(imageIds)) {
       await query(
         'DELETE FROM images WHERE question_id = $1 AND user_id = $2',
@@ -406,10 +368,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         );
       }
     }
-
-    // Invalidate cache
-    await invalidateCache(`question:{"id":"${id}"}`);
-    await invalidateCache('questions:*');
 
     return NextResponse.json({ 
       success: true, 
@@ -426,9 +384,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-// ============================================
-// DELETE - Delete a question
-// ============================================
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
   
@@ -469,7 +424,6 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Delete images from blob storage
     const images = await query(
       'SELECT image_url FROM images WHERE question_id = $1',
       [id]
@@ -494,15 +448,10 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Delete question (cascade will handle everything else)
     await query(
       'DELETE FROM questions WHERE id = $1',
       [id]
     );
-
-    // Invalidate cache
-    await invalidateCache(`question:{"id":"${id}"}`);
-    await invalidateCache('questions:*');
 
     return NextResponse.json({ 
       success: true, 

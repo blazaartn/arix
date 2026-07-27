@@ -12,6 +12,8 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { useLikes } from '@/hooks/useLikes';
 import { useToast } from '@/contexts/ToastContext';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 interface Image {
   id: string;
@@ -75,6 +77,68 @@ function formatTime(dateString: string): string {
   if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))} h`;
   if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / (24 * 60 * 60 * 1000))} j`;
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+// ✅ Math rendering function
+function renderMath(content: string): string {
+  if (typeof window === 'undefined') return content;
+  
+  try {
+    // Replace $$...$$ with rendered math (block display)
+    const mathRegex = /\$\$([\s\S]*?)\$\$/g;
+    // Replace $...$ with rendered math (inline display)
+    const inlineRegex = /\$([^\$]+?)\$/g;
+    
+    let rendered = content;
+    
+    // Render block math ($$ ... $$) - do this first
+    rendered = rendered.replace(mathRegex, (match, math) => {
+      try {
+        return katex.renderToString(math.trim(), {
+          displayMode: true,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return match;
+      }
+    });
+    
+    // Render inline math ($ ... $)
+    rendered = rendered.replace(inlineRegex, (match, math) => {
+      try {
+        return katex.renderToString(math.trim(), {
+          displayMode: false,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return match;
+      }
+    });
+    
+    return rendered;
+  } catch {
+    return content;
+  }
+}
+
+// ✅ Math Content Component
+function MathContent({ content, className = '' }: { content: string; className?: string }) {
+  const [renderedHtml, setRenderedHtml] = useState('');
+
+  useEffect(() => {
+    setRenderedHtml(renderMath(content));
+  }, [content]);
+
+  if (!content) return null;
+
+  return (
+    <div 
+      className={`math-content ${className}`}
+      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+    />
+  );
 }
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
@@ -298,12 +362,14 @@ export const QuestionCard = memo(function QuestionCard({
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content with Math Rendering */}
       <div className="px-4 pb-3">
         <h3 className="font-semibold text-gray-900 text-base mb-1.5 line-clamp-2">
           {question.title}
         </h3>
-        <p className="text-gray-500 text-sm line-clamp-2">{question.content}</p>
+        <div className="text-gray-500 text-sm line-clamp-3">
+          <MathContent content={question.content} />
+        </div>
       </div>
 
       {/* Code */}

@@ -9,7 +9,8 @@ import {
   BookOpen, Clock, Heart, MessageCircle, Share2,
   ArrowLeft, Send, Eye, Award, ThumbsUp,
   Image as ImageIcon, X, Home, Code, CheckCircle,
-  AlertCircle, Trash2, Loader2, Check
+  AlertCircle, Trash2, Edit2, MoreVertical,
+  Loader2, Check
 } from 'lucide-react';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { Button } from '@/components/ui/Button';
@@ -17,7 +18,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { useLikes } from '@/hooks/useLikes';
-import DOMPurify from 'dompurify';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 interface Image {
   id: string;
@@ -79,7 +81,7 @@ function formatTime(dateString: string): string {
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
-// ✅ Share Button - Single component
+// ✅ Share Button Component
 function ShareButton({ url, title }: { url: string; title: string }) {
   const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -131,92 +133,65 @@ function ShareButton({ url, title }: { url: string; title: string }) {
   );
 }
 
-// ✅ Comment Component - Clean, no replies
-function CommentItem({ 
-  comment, 
-  currentUserId, 
-  onDelete,
-  onLike
-}: { 
-  comment: Comment; 
-  currentUserId?: string; 
-  onDelete: (id: string) => void;
-  onLike: (id: string) => void;
-}) {
-  const [isLiking, setIsLiking] = useState(false);
-  const [likesCount, setLikesCount] = useState(comment.like_count || 0);
-  const [liked, setLiked] = useState(comment.user_liked || false);
+// ✅ Math rendering function
+function renderMath(content: string): string {
+  if (typeof window === 'undefined') return content;
+  
+  try {
+    // Replace $$...$$ with rendered math (block display)
+    const mathRegex = /\$\$([\s\S]*?)\$\$/g;
+    // Replace $...$ with rendered math (inline display)
+    const inlineRegex = /\$([^\$]+?)\$/g;
+    
+    let rendered = content;
+    
+    // Render block math ($$ ... $$) - do this first
+    rendered = rendered.replace(mathRegex, (match, math) => {
+      try {
+        return katex.renderToString(math.trim(), {
+          displayMode: true,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return match;
+      }
+    });
+    
+    // Render inline math ($ ... $)
+    rendered = rendered.replace(inlineRegex, (match, math) => {
+      try {
+        return katex.renderToString(math.trim(), {
+          displayMode: false,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return match;
+      }
+    });
+    
+    return rendered;
+  } catch {
+    return content;
+  }
+}
 
-  const handleLike = async () => {
-    if (isLiking) return;
-    setIsLiking(true);
-    const newLiked = !liked;
-    setLiked(newLiked);
-    setLikesCount(prev => newLiked ? prev + 1 : prev - 1);
-    onLike(comment.id);
-    setTimeout(() => setIsLiking(false), 200);
-  };
+// ✅ Math Content Component
+function MathContent({ content, className = '' }: { content: string; className?: string }) {
+  const [renderedHtml, setRenderedHtml] = useState('');
+
+  useEffect(() => {
+    setRenderedHtml(renderMath(content));
+  }, [content]);
+
+  if (!content) return null;
 
   return (
-    <div className="flex gap-3 py-3 border-b border-gray-50 last:border-0">
-      <img 
-        src={comment.author_avatar || '/default-avatar.png'} 
-        alt={comment.author_name}
-        className="w-9 h-9 rounded-full flex-shrink-0 border-2 border-gray-200"
-        onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="bg-gray-50 rounded-xl px-4 py-3 hover:bg-gray-100 transition">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-gray-800 text-sm flex items-center gap-1.5">
-                {comment.author_name}
-                <VerifiedBadge role={comment.author_role || 'student'} size="sm" />
-              </span>
-              <span className="text-xs text-gray-400">• {formatTime(comment.created_at)}</span>
-            </div>
-            {currentUserId === comment.user_id && (
-              <button 
-                onClick={() => onDelete(comment.id)} 
-                className="text-gray-400 hover:text-red-500 transition p-1 rounded-lg hover:bg-red-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <p className="text-gray-700 text-sm">{comment.content}</p>
-          
-          {comment.images && comment.images.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              {comment.images.map((img: Image) => (
-                <div 
-                  key={img.id}
-                  className="cursor-pointer rounded-lg overflow-hidden"
-                  onClick={() => window.open(img.image_url, '_blank')}
-                >
-                  <img 
-                    src={img.image_url}
-                    alt=""
-                    className="rounded-lg object-cover w-full h-20 hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button 
-            onClick={handleLike}
-            disabled={isLiking}
-            className={`flex items-center gap-1 text-xs mt-2 transition ${
-              liked ? 'text-blue-500' : 'text-gray-400 hover:text-blue-500'
-            }`}
-          >
-            <ThumbsUp className={`w-3 h-3 ${liked ? 'fill-blue-500' : ''}`} />
-            {likesCount > 0 && <span>{formatNumber(likesCount)}</span>}
-          </button>
-        </div>
-      </div>
-    </div>
+    <div 
+      className={`math-content ${className}`}
+      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+    />
   );
 }
 
@@ -269,118 +244,6 @@ function QuestionDetailSkeleton() {
   );
 }
 
-// HTML Preview Modal
-function HtmlPreviewModal({ html, isOpen, onClose }: { html: string; isOpen: boolean; onClose: () => void }) {
-  const [sanitizedHtml, setSanitizedHtml] = useState('');
-  useEffect(() => {
-    if (html && isOpen) {
-      const clean = DOMPurify.sanitize(html);
-      setSanitizedHtml(clean);
-    }
-  }, [html, isOpen]);
-  if (!isOpen || !html) return null;
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10 bg-black/50 rounded-full p-2">
-        <X className="w-8 h-8" />
-      </button>
-      <div className="w-full max-w-5xl max-h-[90vh] bg-white rounded-xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500"></div><div className="w-3 h-3 rounded-full bg-yellow-500"></div><div className="w-3 h-3 rounded-full bg-green-500"></div></div>
-            <span className="text-sm text-gray-500 ml-2">Aperçu HTML</span>
-          </div>
-          <span className="text-xs text-gray-400">Code sécurisé</span>
-        </div>
-        <div className="flex-1 overflow-auto p-6 bg-white">
-          <iframe srcDoc={sanitizedHtml} sandbox="allow-scripts allow-modals allow-same-origin" className="w-full h-full border-0" title="HTML Preview" loading="lazy" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Fullscreen Code Viewer
-function FullscreenCodeViewer({ code, language, isOpen, onClose }: { code: string; language: string; isOpen: boolean; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); };
-  if (!isOpen || !code) return null;
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10 bg-black/50 rounded-full p-2"><X className="w-8 h-8" /></button>
-      <div className="w-full max-w-4xl max-h-[85vh] bg-gray-900 rounded-xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-          <span className="text-sm text-gray-300 font-mono">{language || 'code'}</span>
-          <button onClick={handleCopy} className="flex items-center gap-1 text-gray-400 hover:text-white transition text-sm">
-            {copied ? <span className="text-green-400">✓ Copié</span> : 'Copier'}
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto p-6">
-          <pre className="text-sm text-gray-200 font-mono whitespace-pre-wrap break-words"><code>{code}</code></pre>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Code Block
-function CodeBlock({ code, language }: { code: string; language: string }) {
-  const [copied, setCopied] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [showFullscreen, setShowFullscreen] = useState(false);
-  const isHtml = language === 'html' || language === 'HTML' || language === 'htm';
-  const MAX_LINES = 20, MAX_CHARS = 2000;
-  const lines = code.split('\n');
-  const totalLines = lines.length;
-  const totalChars = code.length;
-  const isTooLong = totalLines > MAX_LINES || totalChars > MAX_CHARS;
-  const truncatedLines = lines.slice(0, MAX_LINES);
-  const truncatedCode = truncatedLines.join('\n');
-  const handleCopy = async () => { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); };
-  if (!code) return null;
-  return (
-    <>
-      <div className="relative my-2 rounded-lg overflow-hidden border border-gray-200">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
-          <div className="flex items-center gap-3">
-            <span className="font-mono">{language || 'code'}</span>
-            {isTooLong && <span className="text-yellow-400 text-[10px] bg-yellow-400/20 px-2 py-0.5 rounded">{totalLines} lignes</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            {isHtml && <button onClick={() => setShowPreview(true)} className="flex items-center gap-1 hover:text-white transition px-2 py-1 rounded bg-gray-700 hover:bg-gray-600">Aperçu</button>}
-            <button onClick={handleCopy} className="flex items-center gap-1 hover:text-white transition">{copied ? <span className="text-green-400">✓ Copié</span> : 'Copier'}</button>
-            {isTooLong && <button onClick={() => setShowFullscreen(true)} className="flex items-center gap-1 hover:text-white transition px-2 py-1 rounded bg-gray-700 hover:bg-gray-600">Plein écran</button>}
-          </div>
-        </div>
-        <div className="relative">
-          <div className={`p-4 bg-gray-900 overflow-x-auto ${isTooLong ? 'max-h-64' : ''}`}>
-            <pre className="text-sm text-gray-200 font-mono whitespace-pre-wrap break-words"><code>{isTooLong ? truncatedCode : code}</code></pre>
-          </div>
-          {isTooLong && (
-            <>
-              <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-gray-900 via-gray-900/80 to-transparent pointer-events-none"></div>
-              <button onClick={() => setShowFullscreen(true)} className="absolute bottom-2 left-1/2 -translate-x-1/2 px-4 py-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition shadow-lg">Voir tout le code ({totalLines} lignes)</button>
-            </>
-          )}
-        </div>
-      </div>
-      {isHtml && <HtmlPreviewModal html={code} isOpen={showPreview} onClose={() => setShowPreview(false)} />}
-      {isTooLong && <FullscreenCodeViewer code={code} language={language} isOpen={showFullscreen} onClose={() => setShowFullscreen(false)} />}
-    </>
-  );
-}
-
-// Image Viewer
-function ImageViewer({ imageUrl, isOpen, onClose }: { imageUrl: string | null; isOpen: boolean; onClose: () => void }) {
-  if (!isOpen || !imageUrl) return null;
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10"><X className="w-8 h-8" /></button>
-      <img src={imageUrl} alt="Full screen" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-    </div>
-  );
-}
-
 function QuestionDetailContent() {
   const { data: session, status } = useSession();
   const params = useParams();
@@ -393,9 +256,6 @@ function QuestionDetailContent() {
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [commentPage, setCommentPage] = useState(1);
   const commentsPerPage = 10;
-
-  // ✅ Optimistic comments - local state
-  const [optimisticComments, setOptimisticComments] = useState<Comment[]>([]);
 
   // Get current URL for sharing
   const [shareUrl, setShareUrl] = useState('');
@@ -424,9 +284,6 @@ function QuestionDetailContent() {
       const end = start + commentsPerPage;
       const paginatedComments = allComments.slice(start, end);
       
-      // ✅ Update optimistic comments with server data
-      setOptimisticComments(paginatedComments);
-      
       return {
         ...data.question,
         comments: paginatedComments,
@@ -436,13 +293,6 @@ function QuestionDetailContent() {
     staleTime: 60000,
     retry: 2,
   });
-
-  // ✅ Update comments when question changes
-  useEffect(() => {
-    if (question?.comments) {
-      setOptimisticComments(question.comments);
-    }
-  }, [question?.comments]);
 
   // Instant likes
   const { 
@@ -455,10 +305,13 @@ function QuestionDetailContent() {
     question?.userLiked || false
   );
 
-  // ✅ Optimistic comment mutation
+  // Comment mutation
   const commentMutation = useMutation({
     mutationFn: async (content: string) => {
-      if (!session) return null;
+      if (!session) {
+        showToast('Connectez-vous pour commenter', 'warning');
+        return null;
+      }
       
       let uploadedImageIds: string[] = [];
       if (commentImages.length > 0) {
@@ -487,27 +340,17 @@ function QuestionDetailContent() {
     },
     onSuccess: (data) => {
       if (data && data.success) {
-        // ✅ Update with real data from server
-        setOptimisticComments(prev => {
-          // Replace the optimistic comment with the real one
-          const filtered = prev.filter(c => c.id !== 'optimistic');
-          return [...filtered, data.comment];
-        });
         setNewComment('');
         setCommentImages([]);
         setCommentImagePreviews([]);
         showToast('Commentaire ajouté !', 'success');
-        queryClient.invalidateQueries({ queryKey: ['questions'] });
         refetch();
+        queryClient.invalidateQueries({ queryKey: ['comments'] });
       } else if (data && data.error) {
-        // ✅ Remove optimistic comment on error
-        setOptimisticComments(prev => prev.filter(c => c.id !== 'optimistic'));
         showToast(data.error, 'error');
       }
     },
     onError: () => {
-      // ✅ Remove optimistic comment on error
-      setOptimisticComments(prev => prev.filter(c => c.id !== 'optimistic'));
       showToast('Erreur lors de l\'ajout du commentaire', 'error');
     },
   });
@@ -520,7 +363,6 @@ function QuestionDetailContent() {
     },
     onSuccess: (data) => {
       if (data.success) {
-        setOptimisticComments(prev => prev.filter(c => c.id !== 'optimistic'));
         showToast('Commentaire supprimé', 'success');
         refetch();
       } else {
@@ -550,29 +392,6 @@ function QuestionDetailContent() {
       showToast('Connectez-vous pour commenter', 'warning');
       return;
     }
-
-    // ✅ Add optimistic comment instantly
-    const optimisticComment: Comment = {
-      id: 'optimistic',
-      content: newComment.trim(),
-      user_id: session.user.id,
-      author_name: session.user.name || 'Anonyme',
-      author_avatar: session.user.avatar_url || '/default-avatar.png',
-      author_role: session.user.role || 'student',
-      created_at: new Date().toISOString(),
-      like_count: 0,
-      user_liked: false,
-      images: commentImagePreviews.map((url, index) => ({
-        id: `temp-${index}`,
-        image_url: url,
-        caption: '',
-        is_primary: false
-      }))
-    };
-
-    setOptimisticComments(prev => [...prev, optimisticComment]);
-    
-    // ✅ Send in background
     commentMutation.mutate(newComment.trim());
   };
 
@@ -631,7 +450,6 @@ function QuestionDetailContent() {
   }
 
   const totalPages = Math.ceil((question.totalComments || 0) / commentsPerPage);
-  const displayComments = optimisticComments.length > 0 ? optimisticComments : question.comments || [];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -687,7 +505,11 @@ function QuestionDetailContent() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-3">{question.title}</h1>
-          <p className="text-gray-700 whitespace-pre-wrap mb-4">{question.content}</p>
+          
+          {/* ✅ CONTENT WITH MATH RENDERING */}
+          <div className="text-gray-700 mb-4 prose prose-sm max-w-none">
+            <MathContent content={question.content} />
+          </div>
 
           {question.code_content && (
             <div className="mb-4">
@@ -695,7 +517,9 @@ function QuestionDetailContent() {
                 <Code className="w-4 h-4 text-gray-500" />
                 <span className="text-sm font-medium text-gray-600">Code</span>
               </div>
-              <CodeBlock code={question.code_content} language={question.code_language || 'javascript'} />
+              <pre className="p-4 bg-gray-900 rounded-lg overflow-x-auto text-sm text-gray-200 font-mono">
+                <code>{question.code_content}</code>
+              </pre>
             </div>
           )}
 
@@ -742,131 +566,137 @@ function QuestionDetailContent() {
 
         {/* Comments Section */}
         <div id="comments-section" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-orange-500" />
-              {question.totalComments || 0} Commentaire{question.totalComments !== 1 ? 's' : ''}
-            </h2>
-          </div>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">
+            {question.totalComments || 0} Commentaire{question.totalComments !== 1 ? 's' : ''}
+          </h2>
 
-          {/* Comments List */}
-          <div className="space-y-0 max-h-[500px] overflow-y-auto pr-2">
-            {displayComments.length === 0 ? (
-              <div className="text-center py-12">
-                <MessageCircle className="w-16 h-16 text-gray-200 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">Aucun commentaire</p>
-                <p className="text-sm text-gray-400">Soyez le premier à commenter !</p>
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+            {question.comments?.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageCircle className="w-12 h-12 text-gray-200 mx-auto mb-2" />
+                <p className="text-gray-400">Aucun commentaire</p>
+                <p className="text-sm text-gray-300">Soyez le premier à commenter !</p>
               </div>
             ) : (
-              displayComments.map((comment: Comment) => {
-                const isOptimistic = comment.id === 'optimistic';
-                return (
-                  <div key={comment.id} className={isOptimistic ? 'opacity-70 animate-pulse' : ''}>
-                    <CommentItem
-                      comment={comment}
-                      currentUserId={session?.user?.id}
-                      onDelete={handleDeleteComment}
-                      onLike={handleCommentLike}
-                    />
-                    {isOptimistic && (
-                      <div className="text-xs text-orange-500 ml-12 mt-1 flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Publication en cours...
+              question.comments?.map((comment: Comment) => (
+                <div key={comment.id} className="flex gap-3 group animate-fadeIn">
+                  <img 
+                    src={comment.author_avatar || '/default-avatar.png'} 
+                    alt={comment.author_name}
+                    className="w-10 h-10 rounded-full flex-shrink-0 border-2 border-gray-200"
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
+                  />
+                  <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3 hover:bg-gray-100 transition">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-800 text-sm flex items-center gap-1.5">
+                          {comment.author_name}
+                          <VerifiedBadge role={comment.author_role || 'student'} size="sm" />
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {formatTime(comment.created_at)}
+                        </p>
+                      </div>
+                      {session?.user?.id === comment.user_id && (
+                        <button 
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="text-gray-400 hover:text-red-500 transition p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-gray-700 text-sm">{comment.content}</p>
+                    {comment.images && comment.images.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {comment.images.map((img: Image) => (
+                          <div 
+                            key={img.id}
+                            className="cursor-pointer rounded-lg overflow-hidden"
+                            onClick={() => setViewerImage(img.image_url)}
+                          >
+                            <img 
+                              src={img.image_url}
+                              alt=""
+                              className="rounded-lg object-cover w-full h-24 hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                );
-              })
+                </div>
+              ))
             )}
           </div>
 
-          {/* Comment Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 mt-4">
-              <button
-                onClick={() => handleCommentPageChange(commentPage - 1)}
-                disabled={commentPage <= 1}
-                className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                ←
-              </button>
-              <span className="text-sm text-gray-600">
-                {commentPage} / {totalPages}
-              </span>
-              <button
-                onClick={() => handleCommentPageChange(commentPage + 1)}
-                disabled={commentPage >= totalPages}
-                className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                →
-              </button>
-            </div>
-          )}
+          <CommentPagination 
+            currentPage={commentPage}
+            totalPages={totalPages || 1}
+            onPageChange={handleCommentPageChange}
+            isLoading={isLoading}
+          />
 
-          {/* Comment Input */}
           {session ? (
             <form onSubmit={handleCommentSubmit} className="space-y-3 mt-4 pt-4 border-t border-gray-100">
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <img 
                   src={session.user.avatar_url || '/default-avatar.png'} 
                   alt={session.user.name}
                   className="w-10 h-10 rounded-full flex-shrink-0 border-2 border-gray-200"
                 />
-                <div className="flex-1">
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Écrire un commentaire..."
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none min-h-[60px]"
-                    rows={2}
-                    disabled={commentMutation.isPending}
-                  />
-                  
-                  {commentImagePreviews.length > 0 && (
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {commentImagePreviews.map((preview, index) => (
-                        <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border">
-                          <img src={preview} alt="" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => removeCommentImage(index)}
-                            className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Écrire un commentaire..."
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                  rows={2}
+                  disabled={commentMutation.isPending}
+                />
+              </div>
 
-                  <div className="flex items-center gap-2 mt-2">
-                    <label className="px-3 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 cursor-pointer transition flex items-center gap-1.5 text-sm text-gray-600">
-                      <ImageIcon className="w-4 h-4" />
-                      <span className="hidden sm:inline">Images</span>
-                      <input 
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleCommentImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    <Button
-                      type="submit"
-                      loading={commentMutation.isPending}
-                      disabled={(!newComment.trim() && commentImages.length === 0)}
-                      className="flex-1"
-                    >
-                      <Send className="w-4 h-4" />
-                      Commenter
-                    </Button>
-                  </div>
+              {commentImagePreviews.length > 0 && (
+                <div className="flex gap-2 ml-12">
+                  {commentImagePreviews.map((preview, index) => (
+                    <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                      <img src={preview} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeCommentImage(index)}
+                        className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
+              )}
+
+              <div className="flex gap-2 ml-12">
+                <label className="px-3 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 cursor-pointer transition">
+                  <ImageIcon className="w-4 h-4" />
+                  <input 
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleCommentImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  loading={commentMutation.isPending}
+                  disabled={(!newComment.trim() && commentImages.length === 0)}
+                  fullWidth
+                >
+                  <Send className="w-4 h-4" />
+                  Commenter
+                </Button>
               </div>
             </form>
           ) : (
-            <div className="text-center py-6 bg-gray-50 rounded-xl mt-4">
-              <p className="text-gray-500 mb-3">Connectez-vous pour commenter</p>
+            <div className="text-center py-4 bg-gray-50 rounded-xl mt-4">
+              <p className="text-gray-500 mb-2">Connectez-vous pour commenter</p>
               <Button onClick={() => signIn('google')}>
                 Se connecter
               </Button>
@@ -880,6 +710,53 @@ function QuestionDetailContent() {
         isOpen={!!viewerImage}
         onClose={() => setViewerImage(null)}
       />
+    </div>
+  );
+}
+
+// Image Viewer
+function ImageViewer({ imageUrl, isOpen, onClose }: { imageUrl: string | null; isOpen: boolean; onClose: () => void }) {
+  if (!isOpen || !imageUrl) return null;
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10"><X className="w-8 h-8" /></button>
+      <img src={imageUrl} alt="Full screen" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+    </div>
+  );
+}
+
+// Comment Pagination
+function CommentPagination({ 
+  currentPage, 
+  totalPages, 
+  onPageChange,
+  isLoading
+}: { 
+  currentPage: number; 
+  totalPages: number; 
+  onPageChange: (page: number) => void;
+  isLoading: boolean;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 mt-4">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage <= 1 || isLoading}
+        className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
+      >
+        {isLoading ? <LoadingSpinner size="sm" /> : '←'}
+      </button>
+      <span className="text-sm text-gray-600">
+        {currentPage} / {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage >= totalPages || isLoading}
+        className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
+      >
+        {isLoading ? <LoadingSpinner size="sm" /> : '→'}
+      </button>
     </div>
   );
 }
