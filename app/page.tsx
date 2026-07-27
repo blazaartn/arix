@@ -149,23 +149,25 @@ function HomeContent() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // ✅ Fixed: Silent fail for unread count
   useEffect(() => {
     if (!session) return;
     
     const fetchUnreadCount = async () => {
       try {
         const res = await fetch('/api/notifications?unread=true&limit=1');
+        if (!res.ok) return;
         const data = await res.json();
         if (data.success) {
           setUnreadCount(data.unreadCount || 0);
         }
-      } catch (error) {
-        console.error('Error fetching unread count:', error);
+      } catch {
+        // Silent fail - not critical
       }
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 10000);
+    const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [session]);
 
@@ -197,6 +199,37 @@ function HomeContent() {
     retry: 2,
   });
 
+  // ✅ Fetch sidebar data
+  const { data: sidebarData, isLoading: sidebarLoading } = useQuery({
+    queryKey: ['sidebar', session?.user?.id],
+    queryFn: async () => {
+      if (!session) return { topUsers: [], todos: [] };
+      
+      try {
+        const [topUsersRes, todosRes] = await Promise.all([
+          fetch('/api/ranking?limit=3'),
+          fetch('/api/todos?limit=5&filter=active')
+        ]);
+        
+        const [topUsers, todos] = await Promise.all([
+          topUsersRes.json(),
+          todosRes.json()
+        ]);
+        
+        return {
+          topUsers: topUsers.users || [],
+          todos: todos.todos || []
+        };
+      } catch (error) {
+        console.error('Sidebar data error:', error);
+        return { topUsers: [], todos: [] };
+      }
+    },
+    staleTime: 60000,
+    enabled: !!session,
+    initialData: { topUsers: [], todos: [] }
+  });
+
   const handlePageChange = (page: number) => {
     if (page >= 1 && page !== currentPage) {
       setCurrentPage(page);
@@ -223,6 +256,10 @@ function HomeContent() {
     return <LoadingScreen />;
   }
 
+  // ✅ Calculate total pages properly
+  const totalQuestions = questionsData?.totalCount || questionsData?.questions?.length || 0;
+  const totalPages = Math.ceil(totalQuestions / limit) || 1;
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 pb-20">
       <Header 
@@ -236,9 +273,13 @@ function HomeContent() {
 
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex gap-6">
-          {/* ✅ Sidebar - Self-contained, fetches its own data */}
+          {/* ✅ Sidebar - Self-contained */}
           <aside className="hidden lg:block w-[28%] flex-shrink-0 space-y-4">
-            <Sidebar session={session} />
+            <Sidebar 
+              session={session}
+              topUsers={sidebarData?.topUsers || []}
+              todos={sidebarData?.todos || []}
+            />
           </aside>
 
           <main className="flex-1 min-w-0">
@@ -279,7 +320,7 @@ function HomeContent() {
               onImageClick={(url) => setViewerImage(url)}
               searchQuery={searchQuery}
               currentPage={currentPage}
-              totalPages={questionsData?.hasMore ? currentPage + 1 : currentPage}
+              totalPages={totalPages}
               onPageChange={handlePageChange}
               isPageLoading={isFetching}
             />

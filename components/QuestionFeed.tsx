@@ -17,6 +17,7 @@ interface Question {
   comments_count: number;
   like_count: number;
   images_count: number;
+  userLiked?: boolean;
   image?: any;
   code_content?: string;
   code_language?: string;
@@ -58,61 +59,26 @@ function QuestionSkeleton() {
   );
 }
 
-function PaginationControls({ 
-  currentPage, 
-  totalPages, 
-  onPageChange, 
-  isLoading 
-}: { 
-  currentPage: number; 
-  totalPages: number; 
-  onPageChange: (page: number) => void; 
-  isLoading: boolean;
-}) {
+function PaginationControls({ currentPage, totalPages, onPageChange, isLoading }: { currentPage: number; totalPages: number; onPageChange: (page: number) => void; isLoading: boolean }) {
   if (totalPages <= 1) return null;
-  
   return (
-    <div className="flex items-center justify-center gap-2 py-4">
-      <button 
-        onClick={() => onPageChange(currentPage - 1)} 
-        disabled={currentPage <= 1 || isLoading} 
-        className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-      >
-        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} 
-        Précédent
+    <div className="flex items-center justify-center gap-2 py-4 mt-4 border-t border-gray-100">
+      <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1 || isLoading} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
+        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Précédent
       </button>
-      <span className="text-sm text-gray-600">Page {currentPage} sur {totalPages}</span>
-      <button 
-        onClick={() => onPageChange(currentPage + 1)} 
-        disabled={currentPage >= totalPages || isLoading} 
-        className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-      >
-        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} 
-        Suivant
+      <span className="text-sm text-gray-600 font-medium">Page {currentPage} sur {totalPages}</span>
+      <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages || isLoading} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
+        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Suivant
       </button>
     </div>
   );
 }
 
-export function QuestionFeed({ 
-  questions, 
-  loading, 
-  isLoggedIn, 
-  currentUserId, 
-  onRefresh, 
-  onImageClick,
-  searchQuery,
-  currentPage,
-  totalPages,
-  onPageChange,
-  isPageLoading
-}: QuestionFeedProps) {
+export function QuestionFeed({ questions, loading, isLoggedIn, currentUserId, onRefresh, onImageClick, searchQuery, currentPage, totalPages, onPageChange, isPageLoading }: QuestionFeedProps) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <QuestionSkeleton />
-        <QuestionSkeleton />
-        <QuestionSkeleton />
+        <QuestionSkeleton /><QuestionSkeleton /><QuestionSkeleton />
       </div>
     );
   }
@@ -122,7 +88,7 @@ export function QuestionFeed({
       <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
         <BookOpen className="w-16 h-16 text-gray-200 mx-auto mb-4" />
         <p className="text-gray-500 font-medium">
-          {searchQuery ? 'Aucun résultat pour cette recherche' : 'Aucune question pour le moment'}
+          {searchQuery ? 'Aucun résultat' : 'Aucune question'}
         </p>
         <p className="text-sm text-gray-400">
           {searchQuery ? 'Essayez une autre recherche' : 'Soyez le premier à poser une question !'}
@@ -136,7 +102,7 @@ export function QuestionFeed({
       <div className="space-y-4">
         {questions.map((q) => (
           <QuestionCard
-            key={q.id}
+            key={`question-${q.id}`}
             question={q}
             isLoggedIn={isLoggedIn}
             currentUserId={currentUserId}
@@ -145,13 +111,7 @@ export function QuestionFeed({
           />
         ))}
       </div>
-
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={onPageChange}
-        isLoading={isPageLoading}
-      />
+      {totalPages > 1 && <PaginationControls currentPage={currentPage} totalPages={totalPages} onPageChange={onPageChange} isLoading={isPageLoading} />}
     </>
   );
 }

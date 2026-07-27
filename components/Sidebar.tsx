@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { 
   ListChecks, CheckCircle, 
-  Briefcase, Rocket, ChevronRight, Loader2
+  Briefcase, Rocket, ChevronRight, Loader2,
+  Trophy, Star, Award
 } from 'lucide-react';
 
 interface Todo {
@@ -14,48 +15,84 @@ interface Todo {
   due_date?: string;
 }
 
-interface SidebarProps {
-  session: any;
+interface UserRank {
+  id: string;
+  name: string;
+  avatar_url: string;
+  xp_points: number;
+  level: number;
+  role: string;
 }
 
-export function Sidebar({ session }: SidebarProps) {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [loading, setLoading] = useState(true);
+interface SidebarProps {
+  session: any;
+  topUsers?: UserRank[];
+  todos?: Todo[];
+}
 
-  // ✅ Fetch todos - exactly like the todos page does
+export function Sidebar({ 
+  session,
+  topUsers = [],
+  todos = []
+}: SidebarProps) {
+  const [localTodos, setLocalTodos] = useState<Todo[]>(todos);
+  const [localTopUsers, setLocalTopUsers] = useState<UserRank[]>(topUsers);
+  const [loadingTodos, setLoadingTodos] = useState(todos.length === 0);
+  const [loadingTopUsers, setLoadingTopUsers] = useState(topUsers.length === 0);
+
+  // ✅ Fetch todos if not provided
   useEffect(() => {
     const fetchTodos = async () => {
-      if (!session) {
-        setLoading(false);
+      if (!session || todos.length > 0) {
+        setLoadingTodos(false);
         return;
       }
       
       try {
         const res = await fetch('/api/todos?limit=5&filter=active');
         const data = await res.json();
-        
-        console.log('📊 Sidebar todos response:', data); // Debug log
-        
         if (data.success) {
-          setTodos(data.todos || []);
-        } else {
-          setTodos([]);
+          setLocalTodos(data.todos || []);
         }
       } catch (error) {
-        console.error('Error fetching todos for sidebar:', error);
-        setTodos([]);
+        console.error('Error fetching todos:', error);
       } finally {
-        setLoading(false);
+        setLoadingTodos(false);
       }
     };
 
     fetchTodos();
-  }, [session]);
+  }, [session, todos]);
 
-  // ✅ Debug: log todos state
-  console.log('📊 Sidebar todos state:', todos);
+  // ✅ Fetch top users if not provided
+  useEffect(() => {
+    const fetchTopUsers = async () => {
+      if (!session || topUsers.length > 0) {
+        setLoadingTopUsers(false);
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/ranking?limit=3');
+        const data = await res.json();
+        if (data.success) {
+          setLocalTopUsers(data.users || []);
+        }
+      } catch (error) {
+        console.error('Error fetching top users:', error);
+      } finally {
+        setLoadingTopUsers(false);
+      }
+    };
 
-  if (loading) {
+    fetchTopUsers();
+  }, [session, topUsers]);
+
+  const displayTodos = todos.length > 0 ? todos : localTodos;
+  const displayTopUsers = topUsers.length > 0 ? topUsers : localTopUsers;
+  const isLoading = loadingTodos || loadingTopUsers;
+
+  if (isLoading) {
     return (
       <div className="space-y-3">
         <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm animate-pulse">
@@ -83,7 +120,7 @@ export function Sidebar({ session }: SidebarProps) {
         </div>
       )}
 
-      {/* ✅ TODOS - Fixed to show properly */}
+      {/* TODOS */}
       <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
@@ -91,16 +128,12 @@ export function Sidebar({ session }: SidebarProps) {
             <h3 className="text-xs font-bold text-gray-800">Todos</h3>
           </div>
           <Link href="/todos" className="text-[10px] text-blue-500 hover:text-blue-600 font-medium flex items-center gap-0.5">
-            Voir tout
+            Voir
             <ChevronRight className="w-3 h-3" />
           </Link>
         </div>
 
-        {!session ? (
-          <div className="text-center py-2">
-            <p className="text-[10px] text-gray-400">Connectez-vous</p>
-          </div>
-        ) : todos.length === 0 ? (
+        {displayTodos.length === 0 ? (
           <div className="text-center py-2">
             <p className="text-[10px] text-gray-400">Aucune tâche</p>
             <Link href="/todos" className="text-[10px] text-blue-500 hover:text-blue-600 inline-block mt-0.5">
@@ -109,7 +142,7 @@ export function Sidebar({ session }: SidebarProps) {
           </div>
         ) : (
           <div className="space-y-1.5">
-            {todos.slice(0, 4).map((todo) => (
+            {displayTodos.slice(0, 4).map((todo) => (
               <div key={todo.id} className="flex items-center gap-1.5 p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                 <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${todo.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
                   {todo.completed && <CheckCircle className="w-3 h-3 text-white" />}
