@@ -73,8 +73,6 @@ export const QuestionCard = memo(function QuestionCard({
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [shareCopied, setShareCopied] = useState(false);
-
-  // ✅ Use the server's userLiked value
   const [liked, setLiked] = useState(question.userLiked || false);
   const [likesCount, setLikesCount] = useState(question.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
@@ -100,9 +98,6 @@ export const QuestionCard = memo(function QuestionCard({
       if (data.count !== undefined) {
         setLikesCount(data.count);
         setLiked(data.liked);
-        // ✅ Update the question object for consistency
-        question.like_count = data.count;
-        question.userLiked = data.liked;
       }
     } catch {
       // Revert on error
@@ -174,11 +169,7 @@ export const QuestionCard = memo(function QuestionCard({
       </div>
 
       <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-50">
-        <button 
-          onClick={handleLike} 
-          disabled={!isLoggedIn || isLiking} 
-          className={`flex items-center gap-1 text-sm transition-all duration-200 ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'} cursor-pointer`}
-        >
+        <button onClick={handleLike} disabled={!isLoggedIn || isLiking} className={`flex items-center gap-1 text-sm transition-all duration-200 ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'} cursor-pointer`}>
           <Heart className={`w-4 h-4 transition-all duration-200 ${liked ? 'fill-red-500 scale-110' : ''}`} />
           <span className="font-medium">{formatNumber(likesCount)}</span>
         </button>
