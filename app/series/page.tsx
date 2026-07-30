@@ -7,7 +7,7 @@ import {
     ArrowLeft, BookOpen, Download, 
     CheckCircle, Calendar, FileText, Search, Loader2,
     TrendingUp, Sparkles, GraduationCap,
-    ChevronRight
+    ChevronRight, ChevronLeft, AlertCircle, Eye, EyeOff
 } from 'lucide-react';
 import { MOCK_SERIES, SUBJECT_CONFIG, TYPE_CONFIG, SeriesItem } from './data';
 
@@ -31,6 +31,26 @@ function saveCompletedSeries(completed: Set<string>) {
         localStorage.setItem('bacplus_completed_series', JSON.stringify([...completed]));
     } catch (error) {
         console.error('Error saving completed series:', error);
+    }
+}
+
+function getHideCompleted(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+        const stored = localStorage.getItem('bacplus_hide_completed');
+        return stored === 'true';
+    } catch (error) {
+        console.error('Error loading hide completed setting:', error);
+    }
+    return false;
+}
+
+function saveHideCompleted(hide: boolean) {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem('bacplus_hide_completed', String(hide));
+    } catch (error) {
+        console.error('Error saving hide completed setting:', error);
     }
 }
 
@@ -204,17 +224,103 @@ function SeriesSkeleton() {
     );
 }
 
+// Pagination Component
+function Pagination({ 
+    currentPage, 
+    totalPages, 
+    onPageChange 
+}: { 
+    currentPage: number; 
+    totalPages: number; 
+    onPageChange: (page: number) => void;
+}) {
+    if (totalPages <= 1) return null;
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const showEllipsis = totalPages > 7;
+        
+        if (!showEllipsis) {
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+        } else {
+            pages.push(1);
+            
+            if (currentPage > 3) {
+                pages.push('...');
+            }
+            
+            const start = Math.max(2, currentPage - 1);
+            const end = Math.min(totalPages - 1, currentPage + 1);
+            
+            for (let i = start; i <= end; i++) {
+                pages.push(i);
+            }
+            
+            if (currentPage < totalPages - 2) {
+                pages.push('...');
+            }
+            
+            pages.push(totalPages);
+        }
+        
+        return pages;
+    };
+
+    return (
+        <div className="flex items-center justify-center gap-1 sm:gap-2 mt-6 sm:mt-8">
+            <button
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+                <ChevronLeft className="w-4 h-4" />
+            </button>
+            
+            {getPageNumbers().map((page, index) => (
+                <button
+                    key={index}
+                    onClick={() => typeof page === 'number' && onPageChange(page)}
+                    className={`min-w-[32px] sm:min-w-[40px] h-8 sm:h-10 px-2 sm:px-3 rounded-lg border transition text-xs sm:text-sm font-medium ${
+                        page === currentPage
+                            ? 'bg-orange-500 text-white border-orange-500'
+                            : typeof page === 'number'
+                            ? 'border-gray-200 hover:bg-gray-50'
+                            : 'border-transparent cursor-default'
+                    }`}
+                    disabled={typeof page !== 'number'}
+                >
+                    {page}
+                </button>
+            ))}
+            
+            <button
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+                <ChevronRight className="w-4 h-4" />
+            </button>
+        </div>
+    );
+}
+
 function SeriesContent() {
     const [items, setItems] = useState<SeriesItem[]>([]);
     const [filteredItems, setFilteredItems] = useState<SeriesItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSubject, setSelectedSubject] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hideCompleted, setHideCompleted] = useState(false);
+    const itemsPerPage = 10;
 
     // Load data and completed status from localStorage
     useEffect(() => {
         const timer = setTimeout(() => {
             const completedIds = getCompletedSeries();
+            const hide = getHideCompleted();
             
             const itemsWithCompletion = MOCK_SERIES.map(item => ({
                 ...item,
@@ -223,6 +329,7 @@ function SeriesContent() {
             
             setItems(itemsWithCompletion);
             setFilteredItems(itemsWithCompletion);
+            setHideCompleted(hide);
             setLoading(false);
         }, 500);
         return () => clearTimeout(timer);
@@ -232,10 +339,12 @@ function SeriesContent() {
     useEffect(() => {
         let filtered = items;
 
+        // Filter by subject
         if (selectedSubject !== 'all') {
             filtered = filtered.filter(item => item.subject === selectedSubject);
         }
 
+        // Filter by search query
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(item =>
@@ -244,8 +353,14 @@ function SeriesContent() {
             );
         }
 
+        // Filter by completion status
+        if (hideCompleted) {
+            filtered = filtered.filter(item => !item.is_completed);
+        }
+
         setFilteredItems(filtered);
-    }, [items, selectedSubject, searchQuery]);
+        setCurrentPage(1); // Reset to first page when filters change
+    }, [items, selectedSubject, searchQuery, hideCompleted]);
 
     // Toggle complete status with localStorage
     const toggleComplete = (id: string) => {
@@ -265,6 +380,19 @@ function SeriesContent() {
             return updated;
         });
     };
+
+    // Toggle hide completed
+    const toggleHideCompleted = () => {
+        const newValue = !hideCompleted;
+        setHideCompleted(newValue);
+        saveHideCompleted(newValue);
+    };
+
+    // Pagination
+    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentItems = filteredItems.slice(startIndex, endIndex);
 
     if (loading) {
         return (
@@ -324,17 +452,39 @@ function SeriesContent() {
                     </div>
                 </div>
 
-                {/* Search Bar */}
+                {/* Controls Bar */}
                 <div className="bg-white rounded-xl border border-gray-100 p-3 sm:p-4 mb-4 sm:mb-6 shadow-sm">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Rechercher un document..."
-                            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        {/* Search Bar */}
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Rechercher un document..."
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        {/* Hide Completed Toggle */}
+                        <button
+                            onClick={toggleHideCompleted}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 text-sm whitespace-nowrap ${
+                                hideCompleted
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-lg shadow-orange-500/25'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:shadow-md'
+                            }`}
+                        >
+                            {hideCompleted ? (
+                                <Eye className="w-4 h-4" />
+                            ) : (
+                                <EyeOff className="w-4 h-4" />
+                            )}
+                            <span className="font-medium">
+                                {hideCompleted ? 'Afficher complétés' : 'Cacher complétés'}
+                            </span>
+                        </button>
                     </div>
                 </div>
 
@@ -346,6 +496,21 @@ function SeriesContent() {
                     />
                 </div>
 
+                {/* Disclaimer */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 shadow-sm">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                        <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                        <div className="text-xs sm:text-sm text-blue-700">
+                            <p className="font-medium">📚 À propos des documents</p>
+                            <p className="mt-0.5 text-blue-600">
+                                Tous les examens sont hébergés sur <strong>bacweb.tn</strong>, la plateforme officielle du Bac Tunisien.
+                                Nous ne faisons que fournir des liens directs vers ces ressources. Si un fichier est indisponible,
+                                veuillez consulter directement le site officiel.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Results */}
                 {filteredItems.length === 0 ? (
                     <div className="bg-white rounded-2xl p-8 sm:p-12 text-center border border-gray-100 shadow-sm">
@@ -354,15 +519,26 @@ function SeriesContent() {
                         <p className="text-sm text-gray-400">Essayez de modifier les filtres</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-3">
-                        {filteredItems.map((item) => (
-                            <SeriesCard
-                                key={item.id}
-                                item={item}
-                                onToggleComplete={toggleComplete}
+                    <>
+                        <div className="grid grid-cols-1 gap-3">
+                            {currentItems.map((item) => (
+                                <SeriesCard
+                                    key={item.id}
+                                    item={item}
+                                    onToggleComplete={toggleComplete}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
                             />
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </main>
         </div>
