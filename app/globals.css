@@ -1,0 +1,228 @@
+@import "tailwindcss";
+
+:root {
+  /* Modern & Minimal Color System */
+  
+  /* Backgrounds */
+  --background: #f8fafc;
+  --background-card: #ffffff;
+  --background-hover: #f1f5f9;
+  
+  /* Foregrounds */
+  --foreground: #0f172a;
+  --foreground-secondary: #64748b;
+  --foreground-tertiary: #94a3b8;
+  
+  /* Primary Colors - Orange Gradient */
+  --primary: #f97316;
+  --primary-dark: #c2410c;
+  --primary-light: #fb923c;
+  
+  /* Accents */
+  --accent: #f97316;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  
+  /* Borders & Dividers */
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-secondary: var(--background-hover);
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-border: var(--border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    --background-card: #1e293b;
+    --background-hover: #1a2332;
+    --foreground: #f8fafc;
+    --foreground-secondary: #cbd5e1;
+    --foreground-tertiary: #94a3b8;
+    --border: #334155;
+    --border-light: #1e293b;
+  }
+}
+
+html {
+  background-color: var(--background);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth transitions */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* Remove transition from some elements for performance */
+input, textarea, select {
+  @apply transition-none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-tertiary);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Utility classes for spacing and design patterns */
+.card {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    background-color: #1e293b;
+    border-color: #334155;
+  }
+}
+
+.card-hover {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition-property: all;
+  transition-duration: 300ms;
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card-hover {
+    background-color: #1e293b;
+    border-color: #334155;
+  }
+}
+
+.section-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  .section-title {
+    color: #f8fafc;
+  }
+}
+
+.heading {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  .heading {
+    color: #f8fafc;
+  }
+}
+
+.text-secondary {
+  color: #4b5563;
+}
+
+@media (prefers-color-scheme: dark) {
+  .text-secondary {
+    color: #cbd5e1;
+  }
+}
+
+.text-tertiary {
+  color: #6b7280;
+}
+
+@media (prefers-color-scheme: dark) {
+  .text-tertiary {
+    color: #94a3b8;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

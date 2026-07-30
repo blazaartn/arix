@@ -1,0 +1,8 @@
+.vercel
+.env*
+/node_modules
+/dist
+/.next
+.package-lock.json
+/scripts
+
