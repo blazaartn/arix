@@ -33,10 +33,12 @@ export async function GET(
         q.view_count,
         q.created_at,
         q.updated_at,
+        q.is_blocked,
+        q.alert_count,
         u.name as author_name,
         u.avatar_url as author_avatar,
         u.role as author_role,
-        (SELECT COUNT(*) FROM comments WHERE question_id = q.id) as comments_count,
+        (SELECT COUNT(*) FROM comments WHERE question_id = q.id AND is_blocked = false) as comments_count,
         (SELECT COUNT(*) FROM likes WHERE question_id = q.id) as like_count
       FROM questions q
       LEFT JOIN users u ON q.user_id = u.id
@@ -50,13 +52,21 @@ export async function GET(
       );
     }
 
+    // ✅ Check if blocked
+    if (questionResult.rows[0].is_blocked) {
+      return NextResponse.json(
+        { error: 'Cette question a été bloquée' },
+        { status: 403 }
+      );
+    }
+
     // ✅ Get question images
     const imagesResult = await query(
       'SELECT id, image_url, caption, is_primary FROM images WHERE question_id = $1 ORDER BY upload_order ASC',
       [id]
     );
 
-    // ✅ Get comments with images and like counts
+    // ✅ Get comments with images and like counts (only non-blocked)
     const commentsResult = await query(`
       SELECT 
         c.id,
@@ -78,7 +88,7 @@ export async function GET(
         ) as images
       FROM comments c
       LEFT JOIN users u ON c.user_id = u.id
-      WHERE c.question_id = $1
+      WHERE c.question_id = $1 AND c.is_blocked = false
       ORDER BY c.created_at ASC
     `, [id]);
 
@@ -102,10 +112,10 @@ export async function GET(
       images: imagesResult.rows || [],
       comments: commentsResult.rows || [],
       userLiked,
-      // ✅ Ensure these are numbers
       like_count: parseInt(questionResult.rows[0].like_count) || 0,
       comments_count: parseInt(questionResult.rows[0].comments_count) || 0,
       view_count: parseInt(questionResult.rows[0].view_count) || 0,
+      alert_count: parseInt(questionResult.rows[0].alert_count) || 0,
     };
 
     return NextResponse.json({ 

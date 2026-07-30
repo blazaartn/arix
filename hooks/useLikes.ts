@@ -21,8 +21,9 @@ export function useLikes(
     liked: Boolean(initialLiked)
   });
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isPending, setIsPending] = useState(false);
 
-  // ✅ Load from localStorage OR use server data
+  // Load from localStorage OR use server data
   useEffect(() => {
     setIsHydrated(true);
     if (typeof window === 'undefined') return;
@@ -43,14 +44,13 @@ export function useLikes(
       console.error('Error loading likes from localStorage:', error);
     }
     
-    // ✅ If no stored data, use server data (initial values)
     setState({
       count: typeof initialCount === 'number' ? initialCount : parseInt(String(initialCount)) || 0,
       liked: Boolean(initialLiked)
     });
   }, [questionId, initialCount, initialLiked]);
 
-  // ✅ Save to localStorage whenever state changes
+  // Save to localStorage whenever state changes
   useEffect(() => {
     if (!isHydrated) return;
     if (typeof window === 'undefined') return;
@@ -69,17 +69,21 @@ export function useLikes(
   }, [questionId, state, isHydrated]);
 
   const toggleLike = useCallback(async () => {
+    if (isPending) return;
+    
     const currentCount = typeof state.count === 'number' ? state.count : parseInt(String(state.count)) || 0;
     const newLiked = !state.liked;
+    
+    // ✅ CORRECT: Only change by +/-1, not based on server response
     const newCount = newLiked ? currentCount + 1 : currentCount - 1;
     
-    // ✅ INSTANT update
+    // Optimistic update
     setState({
       count: newCount,
       liked: newLiked
     });
+    setIsPending(true);
 
-    // ✅ Background sync - but this time we also update the server
     try {
       const res = await fetch('/api/likes', {
         method: 'POST',
@@ -88,7 +92,7 @@ export function useLikes(
       });
       const data = await res.json();
       
-      // ✅ If server returns different state, sync it
+      // ✅ Use server count directly - it's the total
       if (data.count !== undefined) {
         setState({
           count: typeof data.count === 'number' ? data.count : parseInt(String(data.count)) || 0,
@@ -96,14 +100,15 @@ export function useLikes(
         });
       }
     } catch {
-      // ✅ Revert on error
+      // ✅ Revert on error - go back to original state
       setState({
         count: currentCount,
         liked: !newLiked
       });
+    } finally {
+      setIsPending(false);
     }
-
-  }, [questionId, state]);
+  }, [questionId, state, isPending]);
 
   const refreshFromServer = useCallback(async () => {
     try {
@@ -136,16 +141,15 @@ export function useLikes(
     count: typeof state.count === 'number' ? state.count : 0,
     liked: Boolean(state.liked),
     toggleLike,
-    refreshFromServer
+    refreshFromServer,
+    isPending
   };
 }
 
-// ✅ Helper function to clear likes cache on logout
 export function clearLikesCache() {
   try {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('bacplus_likes');
-      console.log('✅ Likes cache cleared on logout');
     }
   } catch (error) {
     console.error('Error clearing likes cache:', error);

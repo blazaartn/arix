@@ -13,6 +13,7 @@ import {
   Loader2, Check, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { AlertButton } from '@/components/AlertButton';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
@@ -43,6 +44,7 @@ interface Comment {
   like_count: number;
   user_liked?: boolean;
   images: Image[];
+  is_blocked?: boolean;
 }
 
 interface Question {
@@ -64,6 +66,8 @@ interface Question {
   userLiked: boolean;
   code_content?: string;
   code_language?: string;
+  is_blocked?: boolean;
+  alert_count?: number;
 }
 
 // ============================================
@@ -354,7 +358,7 @@ function QuestionDetailContent() {
   }, []);
 
   // ============================================
-  // FETCH QUESTION DATA - FORCED
+  // FETCH QUESTION DATA
   // ============================================
   
   const { 
@@ -365,22 +369,31 @@ function QuestionDetailContent() {
   } = useQuery({
     queryKey: ['question', params.id, forceRefresh],
     queryFn: async () => {
-      // ✅ USE THE MAIN API ROUTE WITH QUERY PARAM
       const res = await fetch(`/api/questions?id=${params.id}`);
       
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
       }
       
       const data = await res.json();
       
-      // ✅ Handle both response formats
-      const questionData = data.data || data.question;
+      // Handle blocked or reported questions
+      if (data.error) {
+        if (data.error === 'Vous avez signalé cette question' || 
+            data.error === 'Cette question a été bloquée') {
+          showToast(data.error, 'warning');
+          router.push('/');
+          return null;
+        }
+        throw new Error(data.error);
+      }
       
-      if (data.error) throw new Error(data.error);
-      if (!data.success || !questionData) throw new Error('Question non trouvée');
+      if (!data.success || !data.question) {
+        throw new Error('Question non trouvée');
+      }
       
-      // ✅ Ensure all comments are loaded
+      const questionData = data.question;
       const allComments = questionData.comments || [];
       const start = (commentPage - 1) * commentsPerPage;
       const end = start + commentsPerPage;
@@ -396,10 +409,9 @@ function QuestionDetailContent() {
         userLiked: questionData.userLiked || false,
       };
     },
-    staleTime: 0, // ✅ Force fresh fetch
-    gcTime: 0, // ✅ Don't cache
-    retry: 3,
-    retryDelay: 1000,
+    staleTime: 0,
+    gcTime: 0,
+    retry: 1,
     enabled: !!params.id,
   });
 
@@ -459,7 +471,6 @@ function QuestionDetailContent() {
         setCommentImages([]);
         setCommentImagePreviews([]);
         showToast('Commentaire ajouté !', 'success');
-        // ✅ Force refresh
         setForceRefresh(prev => prev + 1);
         refetch();
         queryClient.invalidateQueries({ queryKey: ['comments'] });
@@ -480,7 +491,6 @@ function QuestionDetailContent() {
     onSuccess: (data) => {
       if (data.success) {
         showToast('Commentaire supprimé', 'success');
-        // ✅ Force refresh
         setForceRefresh(prev => prev + 1);
         refetch();
       } else {
@@ -542,7 +552,6 @@ function QuestionDetailContent() {
     if (page >= 1 && page !== commentPage) {
       setCommentPage(page);
       document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth' });
-      // ✅ Force refresh when changing page
       setForceRefresh(prev => prev + 1);
     }
   };
@@ -771,6 +780,17 @@ function QuestionDetailContent() {
             </button>
             
             <ShareButton url={shareUrl} title={question.title} />
+
+            {/* Alert Button */}
+            <AlertButton 
+              targetId={question.id}
+              targetType="question"
+              size="sm"
+              onAlert={() => {
+                showToast('Question signalée', 'success');
+                router.push('/');
+              }}
+            />
           </div>
         </div>
 
@@ -817,15 +837,22 @@ function QuestionDetailContent() {
                           {formatTime(comment.created_at)}
                         </p>
                       </div>
-                      {session?.user?.id === comment.user_id && (
-                        <button 
-                          onClick={() => handleDeleteComment(comment.id)}
-                          className="text-gray-400 hover:text-red-500 transition p-1 rounded-lg hover:bg-red-50"
-                          aria-label="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <AlertButton 
+                          targetId={comment.id}
+                          targetType="comment"
+                          size="sm"
+                        />
+                        {session?.user?.id === comment.user_id && (
+                          <button 
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="text-gray-400 hover:text-red-500 transition p-1 rounded-lg hover:bg-red-50"
+                            aria-label="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     
                     <p className="text-gray-700 text-sm">{comment.content}</p>

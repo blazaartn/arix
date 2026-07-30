@@ -18,13 +18,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
     }
 
+    const session = await getServerSession(authOptions);
+
     const cacheKey = getCacheKey('comments', { questionId, limit, offset });
     
     const data = await getCached(
       cacheKey,
       async () => {
-        // Get comments with pagination
-        const result = await query(`
+        // ✅ Get reported comment IDs for the current user
+        let reportedIds: string[] = [];
+        if (session?.user?.id) {
+          const reportedResult = await query(
+            `SELECT target_id FROM alerts 
+             WHERE user_id = $1 AND target_type = 'comment'`,
+            [session.user.id]
+          );
+          reportedIds = reportedResult.rows.map((row: any) => row.target_id);
+        }
+
+        // ✅ Build query with filters
+        let queryText = `
           SELECT 
             c.id,
             c.content,
@@ -32,6 +45,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             c.created_at,
             u.name as author_name,
             u.avatar_url as author_avatar,
+            u.role as author_role,
             (SELECT COUNT(*) FROM likes WHERE comment_id = c.id) as like_count,
             COALESCE(
               (SELECT json_agg(
@@ -44,16 +58,43 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             ) as images
           FROM comments c
           LEFT JOIN users u ON c.user_id = u.id
-          WHERE c.question_id = $1
-          ORDER BY c.created_at ASC
-          LIMIT $2 OFFSET $3
-        `, [questionId, limit, offset]);
+          WHERE c.question_id = $1 
+            AND c.is_blocked = false
+        `;
 
-        // Get total count for pagination
-        const countResult = await query(
-          'SELECT COUNT(*) as count FROM comments WHERE question_id = $1',
-          [questionId]
-        );
+        const params: any[] = [questionId];
+        const conditions: string[] = [];
+
+        // ✅ Exclude comments the user has reported (hide from reporter)
+        if (reportedIds.length > 0) {
+          const placeholders = reportedIds.map((_, i) => `$${params.length + 1 + i}`).join(',');
+          conditions.push(`c.id NOT IN (${placeholders})`);
+          params.push(...reportedIds);
+        }
+
+        if (conditions.length > 0) {
+          queryText += ` AND ${conditions.join(' AND ')}`;
+        }
+
+        queryText += ` ORDER BY c.created_at ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(limit, offset);
+
+        const result = await query(queryText, params);
+
+        // ✅ Get total count (excluding blocked and reported)
+        let countQuery = `
+          SELECT COUNT(*) as count FROM comments 
+          WHERE question_id = $1 AND is_blocked = false
+        `;
+        const countParams: any[] = [questionId];
+
+        if (reportedIds.length > 0) {
+          const placeholders = reportedIds.map((_, i) => `$${countParams.length + 1 + i}`).join(',');
+          countQuery += ` AND id NOT IN (${placeholders})`;
+          countParams.push(...reportedIds);
+        }
+
+        const countResult = await query(countQuery, countParams);
 
         return {
           comments: result.rows || [],
@@ -88,6 +129,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { questionId, content, imageIds } = await request.json();
     if (!questionId) {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
+    }
+
+    // ✅ Check if question is blocked
+    const questionCheck = await query(
+      'SELECT is_blocked FROM questions WHERE id = $1',
+      [questionId]
+    );
+    if (questionCheck.rows.length > 0 && questionCheck.rows[0].is_blocked) {
+      return NextResponse.json({ error: 'Cette question est bloquée' }, { status: 403 });
     }
 
     const result = await query(
@@ -133,7 +183,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       [session.user.id]
     );
 
-    // Invalidate only specific question caches - NOT all questions
+    // Invalidate only specific question caches
     await invalidateCache(`comments:{"questionId":"${questionId}"}`);
     await invalidateCache(`question:{"id":"${questionId}"}`);
 
@@ -188,7 +238,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     await query('DELETE FROM likes WHERE comment_id = $1', [commentId]);
     await query('DELETE FROM comments WHERE id = $1', [commentId]);
 
-    // Invalidate only specific question caches - NOT all questions
+    // Invalidate only specific question caches
     await invalidateCache(`comments:{"questionId":"${questionId}"}`);
     await invalidateCache(`question:{"id":"${questionId}"}`);
 

@@ -22,6 +22,7 @@ interface UserRank {
   xp_points: number;
   level: number;
   role: string;
+  rank_position: number;
 }
 
 interface SidebarProps {
@@ -40,7 +41,6 @@ export function Sidebar({
   const [loadingTodos, setLoadingTodos] = useState(todos.length === 0);
   const [loadingTopUsers, setLoadingTopUsers] = useState(topUsers.length === 0);
 
-  // ✅ Fetch todos if not provided (only when logged in)
   useEffect(() => {
     const fetchTodos = async () => {
       if (!session || todos.length > 0) {
@@ -64,10 +64,8 @@ export function Sidebar({
     fetchTodos();
   }, [session, todos]);
 
-  // ✅ Fetch top users - ALWAYS fetch, even when not logged in
   useEffect(() => {
     const fetchTopUsers = async () => {
-      // If we already have topUsers from props, use them
       if (topUsers.length > 0) {
         setLoadingTopUsers(false);
         return;
@@ -87,7 +85,7 @@ export function Sidebar({
     };
 
     fetchTopUsers();
-  }, [topUsers]); // ✅ Removed session dependency
+  }, [topUsers]);
 
   const displayTodos = todos.length > 0 ? todos : localTodos;
   const displayTopUsers = topUsers.length > 0 ? topUsers : localTopUsers;
@@ -140,17 +138,51 @@ export function Sidebar({
           </div>
         ) : (
           <div className="space-y-2">
-            {displayTopUsers.map((user, idx) => (
-              <Link key={user.id} href={`/profile/${user.id}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
-                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">{idx + 1}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate group-hover:text-orange-600">{user.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{user.xp_points} XP • Level {user.level}</p>
-                </div>
-              </Link>
-            ))}
+            {displayTopUsers.map((user, idx) => {
+              const rankPosition = idx + 1;
+              const isTopThree = rankPosition <= 3;
+              
+              return (
+                <Link 
+                  key={user.id} 
+                  href={`/profile/${user.id}`} 
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group"
+                >
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                    rankPosition === 1 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
+                    rankPosition === 2 ? 'bg-gradient-to-br from-gray-300 to-gray-500' :
+                    rankPosition === 3 ? 'bg-gradient-to-br from-orange-400 to-orange-600' :
+                    'bg-slate-200 dark:bg-slate-700'
+                  }`}>
+                    {isTopThree ? (
+                      <span className="text-white font-bold text-sm">
+                        {rankPosition === 1 ? '🥇' : rankPosition === 2 ? '🥈' : '🥉'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600 dark:text-slate-400 font-bold text-sm">
+                        {rankPosition}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate group-hover:text-orange-600">
+                        {user.name}
+                      </p>
+                      <div className="flex items-center gap-0.5">
+                        {user.role === 'admin' && (
+                          <span className="text-xs">👑</span>
+                        )}
+                        {user.role === 'professor' && (
+                          <span className="text-xs">👨‍🏫</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{user.xp_points} XP • Level {user.level}</p>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

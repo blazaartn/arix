@@ -24,7 +24,7 @@ function formatNumber(num: number): string {
 }
 
 // ============================================
-// MENU DRAWER - FIXED
+// MENU DRAWER
 // ============================================
 
 function MenuDrawer({ 
@@ -42,7 +42,6 @@ function MenuDrawer({
   
   if (!isOpen) return null;
   
-  // ✅ Different menu items based on auth status
   const menuItems = session ? [
     { icon: User, label: 'Profil', href: `/profile/${session?.user?.id}` },
     { icon: Code, label: 'Code Playground', href: '/playground' },
@@ -79,7 +78,6 @@ function MenuDrawer({
       />
       <div className={`fixed top-0 right-0 z-[201] h-full w-80 bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         
-        {/* ✅ LOGGED IN - Show user info with avatar, name, email, XP, level */}
         {session ? (
           <div className="p-6 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between">
@@ -106,7 +104,6 @@ function MenuDrawer({
             </div>
           </div>
         ) : (
-          // ✅ GUEST - Simple gray banner with "Utilisateur inconnu"
           <div className="p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -122,7 +119,6 @@ function MenuDrawer({
                 <X className="w-5 h-5 text-slate-400 dark:text-slate-500" />
               </button>
             </div>
-            {/* ✅ Login button inside the gray banner */}
             <button
               onClick={handleSignIn}
               className="w-full mt-3 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-lg hover:shadow-lg hover:shadow-orange-500/25 transition"
@@ -132,7 +128,6 @@ function MenuDrawer({
           </div>
         )}
 
-        {/* Menu Items */}
         <div className="p-3 space-y-1">
           {menuItems.map((item) => (
             <button 
@@ -149,7 +144,6 @@ function MenuDrawer({
           
           <div className="border-t border-slate-200 dark:border-slate-700 my-2"></div>
           
-          {/* ✅ ONLY show logout when logged in */}
           {session ? (
             <button 
               onClick={handleLogout} 
@@ -161,7 +155,6 @@ function MenuDrawer({
               <span className="text-sm font-medium text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300">Déconnexion</span>
             </button>
           ) : (
-            // ✅ GUEST - Show login button (not logout)
             <button 
               onClick={handleSignIn} 
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition group"
@@ -231,13 +224,11 @@ function HomeContent() {
   
   const [unreadCount, setUnreadCount] = useState(0);
   
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch unread count
   useEffect(() => {
     if (!session) return;
     
@@ -259,7 +250,6 @@ function HomeContent() {
     return () => clearInterval(interval);
   }, [session]);
 
-  // Fetch questions
   const { 
     data: questionsData, 
     isLoading, 
@@ -274,7 +264,8 @@ function HomeContent() {
         const url = `/api/questions?limit=${limit}&offset=${offset}${debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ''}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch');
-        return res.json();
+        const data = await res.json();
+        return data;
       } catch {
         throw new Error('Failed to fetch');
       } finally {
@@ -286,7 +277,6 @@ function HomeContent() {
     retry: 2,
   });
 
-  // Fetch sidebar data
   const { data: sidebarData } = useQuery({
     queryKey: ['sidebar', session?.user?.id],
     queryFn: async () => {
@@ -341,12 +331,11 @@ function HomeContent() {
     return <LoadingScreen />;
   }
 
-  const totalQuestions = questionsData?.totalCount || questionsData?.questions?.length || 0;
-  const totalPages = Math.ceil(totalQuestions / limit) || 1;
+  const questions = questionsData?.questions || [];
+  const hasMore = questionsData?.hasMore || false;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 pb-20">
-      {/* Header */}
       <Header 
         session={session}
         unreadCount={unreadCount}
@@ -358,7 +347,6 @@ function HomeContent() {
 
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex gap-6">
-          {/* Sidebar - Desktop */}
           <aside className="hidden lg:block w-[28%] flex-shrink-0 space-y-4">
             <Sidebar 
               session={session}
@@ -367,9 +355,7 @@ function HomeContent() {
             />
           </aside>
 
-          {/* Main Feed */}
           <main className="flex-1 min-w-0">
-            {/* Mobile XP Bar */}
             {!isLoading && session && (
               <div className="lg:hidden">
                 <div className="bg-white border border-gray-100 rounded-xl p-3 mb-4 shadow-sm">
@@ -390,16 +376,14 @@ function HomeContent() {
               </div>
             )}
 
-            {/* Guest Banner - Mobile */}
             {!isLoading && !session && (
               <div className="lg:hidden bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-center">
                 <p className="text-xs text-gray-600">👋 Connectez-vous pour interagir</p>
               </div>
             )}
 
-            {/* Question Feed */}
             <QuestionFeed 
-              questions={questionsData?.questions || []}
+              questions={questions}
               loading={isLoading || isFetching}
               isLoggedIn={!!session}
               currentUserId={session?.user?.id}
@@ -407,15 +391,15 @@ function HomeContent() {
               onImageClick={(url) => setViewerImage(url)}
               searchQuery={searchQuery}
               currentPage={currentPage}
-              totalPages={totalPages}
               onPageChange={handlePageChange}
               isPageLoading={isFetching}
-            />
+              onLoadMore={() => {
+                setCurrentPage(prev => prev + 1);
+              } } hasMore={false}            />
           </main>
         </div>
       </div>
 
-      {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 px-2 py-1 flex justify-around items-center shadow-lg">
         <button 
           onClick={() => router.push('/')} 
@@ -436,7 +420,6 @@ function HomeContent() {
         <button 
           onClick={() => {
             if (!session) {
-              // ✅ If not logged in, open sign-in
               signIn('google', { callbackUrl: '/' });
               return;
             }
@@ -461,7 +444,6 @@ function HomeContent() {
         </button>
       </nav>
 
-      {/* Modals */}
       <QuestionModal 
         isOpen={isQuestionModalOpen} 
         onClose={() => setIsQuestionModalOpen(false)} 
@@ -483,10 +465,6 @@ function HomeContent() {
     </div>
   );
 }
-
-// ============================================
-// EXPORT
-// ============================================
 
 export default function HomePage() {
   return <HomeContent />;

@@ -284,6 +284,13 @@ function PlaygroundContent() {
     }
   }, [currentProject]);
 
+  // ✅ When output changes, automatically show preview on mobile
+  useEffect(() => {
+    if (output && !isPreviewMode && window.innerWidth < 1024) {
+      setIsPreviewMode(true);
+    }
+  }, [output, isPreviewMode]);
+
   // Create new project
   const createProject = useCallback(() => {
     if (!newProjectName.trim()) {
@@ -697,7 +704,7 @@ function PlaygroundContent() {
             ))}
           </div>
           
-          {/* Editor with proper mobile height */}
+          {/* Editor */}
           <div className="flex-1 relative min-h-[300px] sm:min-h-[400px] lg:min-h-0">
             <textarea
               ref={textareaRef}
@@ -748,28 +755,33 @@ function PlaygroundContent() {
           )}
         </div>
         
-        {/* Preview section */}
-        <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 ${isPreviewMode ? 'flex' : 'hidden lg:flex'} flex-col border-t lg:border-t-0 lg:border-l border-gray-700`}>
+        {/* ✅ Preview section - Always visible on mobile, hidden on desktop if not in preview mode */}
+        <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-700 ${
+          isPreviewMode ? 'flex' : 'hidden lg:flex'
+        }`}>
           <div className="bg-gray-800 border-b border-gray-700 px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Eye className="w-4 h-4" />
               <span className="hidden sm:inline">Aperçu</span>
             </div>
             <div className="flex items-center gap-2">
+              {/* ✅ Mobile: Toggle between Editor and Preview */}
+              <button
+                onClick={() => setIsPreviewMode(!isPreviewMode)}
+                className="lg:hidden text-xs text-gray-400 hover:text-white transition px-2 py-1 rounded bg-gray-700"
+              >
+                {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
+              </button>
+              
               {/* ✅ Mobile fullscreen preview button */}
               <button
                 onClick={togglePreviewFullscreen}
-                className="lg:hidden p-1 hover:bg-gray-700 rounded transition text-gray-400 hover:text-white"
+                className="p-1 hover:bg-gray-700 rounded transition text-gray-400 hover:text-white"
                 title="Plein écran"
               >
                 <Maximize className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setIsPreviewMode(!isPreviewMode)}
-                className="lg:hidden text-xs text-gray-400 hover:text-white transition"
-              >
-                {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
-              </button>
+              
               <button
                 onClick={() => {
                   if (iframeRef.current) {
