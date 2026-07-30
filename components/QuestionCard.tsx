@@ -126,61 +126,64 @@ export const QuestionCard = memo(function QuestionCard({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-      <div className="flex items-center gap-3 p-4 pb-2">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-orange-200 dark:hover:border-orange-600 transition-all duration-300 overflow-hidden group">
+      {/* Header with author info */}
+      <div className="flex items-center gap-3 p-5">
         <Link href={`/profile/${question.user_id}`} className="flex-shrink-0">
-          <img src={question.author_avatar || '/default-avatar.png'} alt={question.author_name} className="w-10 h-10 rounded-full border-2 border-orange-500/20 object-cover hover:border-orange-500 transition" />
+          <img src={question.author_avatar || '/default-avatar.png'} alt={question.author_name} className="w-11 h-11 rounded-lg border-2 border-orange-500/20 object-cover hover:border-orange-500 transition" />
         </Link>
-        <div>
-          <Link href={`/profile/${question.user_id}`} className="font-medium text-gray-900 text-sm flex items-center gap-1.5 hover:text-orange-500 transition">
+        <div className="flex-1 min-w-0">
+          <Link href={`/profile/${question.user_id}`} className="font-semibold text-slate-900 dark:text-slate-50 text-sm flex items-center gap-1.5 hover:text-orange-600 transition">
             {question.author_name || 'Anonyme'}
             <VerifiedBadge size="sm" role={''} />
           </Link>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" />{question.subject_name || 'Sans matière'}</span>
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded"><BookOpen className="w-3 h-3" />{question.subject_name || 'Général'}</span>
             <span>•</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatTime(question.created_at)}</span>
           </div>
         </div>
       </div>
 
-      <div className="px-4 pb-3">
-        <h3 className="font-semibold text-gray-900 text-base mb-1.5 line-clamp-2">{question.title}</h3>
-        <p className="text-gray-500 text-sm line-clamp-2">{question.content}</p>
+      {/* Content */}
+      <div className="px-5 pb-4">
+        <h3 className="font-bold text-slate-900 dark:text-slate-50 text-base mb-2 line-clamp-2 leading-tight">{question.title}</h3>
+        <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3 leading-relaxed">{question.content}</p>
       </div>
 
+      {/* Code block if present */}
       {question.code_content && (
-        <div className="px-4 pb-2">
-          <pre className="p-3 bg-gray-900 rounded-lg overflow-x-auto text-sm text-gray-200 font-mono">{question.code_content}</pre>
+        <div className="px-5 pb-4">
+          <pre className="p-3 bg-slate-900 dark:bg-slate-950 rounded-lg overflow-x-auto text-xs text-slate-300 font-mono border border-slate-700">{question.code_content}</pre>
         </div>
       )}
 
+      {/* Image if present */}
       {question.image && (
-        <div className="px-4 pb-2 cursor-pointer" onClick={() => onImageClick(question.image.image_url)}>
-          <img src={question.image.image_url} alt="Image" className="rounded-xl w-full h-48 object-cover hover:opacity-90 transition" />
+        <div className="px-5 pb-4 cursor-pointer" onClick={() => onImageClick(question.image.image_url)}>
+          <img src={question.image.image_url} alt="Image" className="rounded-lg w-full h-40 object-cover hover:opacity-90 transition" />
         </div>
       )}
 
-      <div className="px-4 pb-3">
-        <button onClick={() => router.push(`/questions/${question.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-orange-500 hover:text-orange-600 transition group">
-          <span>Voir plus</span>
-          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+      {/* Stats and Actions Footer */}
+      <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+        <div className="flex items-center gap-4">
+          <button onClick={handleLike} disabled={!isLoggedIn || isLiking} className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${liked ? 'text-red-500' : 'text-slate-600 dark:text-slate-400 hover:text-red-500'} cursor-pointer`}>
+            <Heart className={`w-4 h-4 transition-all duration-200 ${liked ? 'fill-red-500 scale-110' : ''}`} />
+            <span>{formatNumber(likesCount)}</span>
+          </button>
+          <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition">
+            <MessageCircle className="w-4 h-4" />
+            <span>{formatNumber(question.comments_count || 0)}</span>
+          </button>
+          <button onClick={handleShare} className={`flex items-center gap-1.5 text-sm font-medium transition ${shareCopied ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>
+            {shareCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+          </button>
+        </div>
+        <button onClick={() => router.push(`/questions/${question.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 transition group/link">
+          <span>Voir</span>
+          <ChevronRight className="w-4 h-4 transition-transform group-hover/link:translate-x-1" />
         </button>
-      </div>
-
-      <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-50">
-        <button onClick={handleLike} disabled={!isLoggedIn || isLiking} className={`flex items-center gap-1 text-sm transition-all duration-200 ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'} cursor-pointer`}>
-          <Heart className={`w-4 h-4 transition-all duration-200 ${liked ? 'fill-red-500 scale-110' : ''}`} />
-          <span className="font-medium">{formatNumber(likesCount)}</span>
-        </button>
-        <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-orange-500 transition">
-          <MessageCircle className="w-4 h-4" />
-          <span>{formatNumber(question.comments_count || 0)}</span>
-        </button>
-        <button onClick={handleShare} className={`flex items-center gap-1 text-sm transition ${shareCopied ? 'text-green-500' : 'text-gray-500 hover:text-orange-500'}`}>
-          {shareCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-        </button>
-        {!isLoggedIn && <button onClick={() => signIn('google', { callbackUrl: '/' })} className="text-xs text-orange-500 hover:text-orange-600 font-medium ml-auto">Connectez-vous</button>}
       </div>
 
       {showComments && isLoggedIn && (

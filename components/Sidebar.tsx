@@ -112,46 +112,85 @@ export function Sidebar({
   }
 
   return (
-    <div className="space-y-3">
-      {/* Guest Banner */}
-      {!session && (
-        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
-          <p className="text-xs text-gray-600">👋 Connectez-vous</p>
-        </div>
-      )}
-
-      {/* TODOS */}
-      <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <ListChecks className="w-4 h-4 text-blue-500" />
-            <h3 className="text-xs font-bold text-gray-800">Todos</h3>
+    <div className="space-y-4">
+      {/* Top Users Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500" />
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Top Contributeurs</h3>
           </div>
-          <Link href="/todos" className="text-[10px] text-blue-500 hover:text-blue-600 font-medium flex items-center gap-0.5">
-            Voir
+          <Link href="/ranking" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium flex items-center gap-1">
+            Voir plus
             <ChevronRight className="w-3 h-3" />
           </Link>
         </div>
 
-        {displayTodos.length === 0 ? (
-          <div className="text-center py-2">
-            <p className="text-[10px] text-gray-400">Aucune tâche</p>
-            <Link href="/todos" className="text-[10px] text-blue-500 hover:text-blue-600 inline-block mt-0.5">
-              Ajouter
+        {loadingTopUsers ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse"></div>
+            ))}
+          </div>
+        ) : displayTopUsers.length === 0 ? (
+          <div className="text-center py-6">
+            <Star className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">Aucun utilisateur</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {displayTopUsers.map((user, idx) => (
+              <Link key={user.id} href={`/profile/${user.id}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
+                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">{idx + 1}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate group-hover:text-orange-600">{user.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{user.xp_points} XP • Level {user.level}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* TODOS Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ListChecks className="w-5 h-5 text-orange-500" />
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Mes Tâches</h3>
+          </div>
+          <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium flex items-center gap-1">
+            Voir tout
+            <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        {loadingTodos ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+            ))}
+          </div>
+        ) : displayTodos.length === 0 ? (
+          <div className="text-center py-6">
+            <CheckCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Aucune tâche</p>
+            <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium inline-block">
+              Créer une tâche
             </Link>
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {displayTodos.slice(0, 4).map((todo) => (
-              <div key={todo.id} className="flex items-center gap-1.5 p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${todo.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
-                  {todo.completed && <CheckCircle className="w-3 h-3 text-white" />}
-                </div>
-                <span className={`text-[11px] flex-1 truncate ${todo.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+              <div key={todo.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition ${todo.completed ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`} />
+                <span className={`text-sm flex-1 truncate ${todo.completed ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>
                   {todo.text}
                 </span>
                 {todo.due_date && (
-                  <span className="text-[9px] text-gray-400 flex-shrink-0">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">
                     {new Date(todo.due_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                   </span>
                 )}
@@ -159,30 +198,6 @@ export function Sidebar({
             ))}
           </div>
         )}
-      </div>
-
-      {/* PROJECTS - Quick Link */}
-      <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm hover:shadow-md transition-all duration-300">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Briefcase className="w-4 h-4 text-orange-500" />
-            <h3 className="text-xs font-bold text-gray-800">Projets</h3>
-          </div>
-          <Link 
-            href="/projects" 
-            className="text-[10px] text-orange-500 hover:text-orange-600 font-medium flex items-center gap-0.5"
-          >
-            Voir tout
-            <ChevronRight className="w-3 h-3" />
-          </Link>
-        </div>
-        <p className="text-[10px] text-gray-500 mt-1">
-          {session ? 'Accédez à vos projets' : 'Connectez-vous pour accéder aux projets'}
-        </p>
-        <div className="mt-2 flex items-center gap-2 text-[10px] text-gray-400">
-          <Rocket className="w-3 h-3 text-orange-400" />
-          <span>3 projets disponibles</span>
-        </div>
       </div>
     </div>
   );

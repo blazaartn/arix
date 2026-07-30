@@ -46,9 +46,40 @@ export async function addXP(
             [newLevel, userId]
         );
 
+        // Trigger rank recalculation (debounced in background)
+        // This is called less frequently to avoid excessive queries
+        triggerRankUpdate().catch(() => {});
+
     } catch (error) {
         console.warn('⚠️ XP error (non-fatal):', error);
     }
+}
+
+// Debounced rank update - recalculates all user ranks
+let rankUpdateTimeout: NodeJS.Timeout | null = null;
+async function triggerRankUpdate(): Promise<void> {
+    if (rankUpdateTimeout) {
+        clearTimeout(rankUpdateTimeout);
+    }
+    
+    // Debounce: only run once per 30 seconds
+    rankUpdateTimeout = setTimeout(async () => {
+        try {
+            await query(`
+                WITH ranked_users AS (
+                    SELECT id, ROW_NUMBER() OVER (ORDER BY xp_points DESC, id) as rank
+                    FROM users
+                    WHERE is_active = true AND xp_points > 0
+                )
+                UPDATE users u SET user_rank = ranked_users.rank
+                FROM ranked_users
+                WHERE u.id = ranked_users.id
+            `);
+        } catch (error) {
+            console.warn('⚠️ Rank update error (non-fatal):', error);
+        }
+        rankUpdateTimeout = null;
+    }, 30000); // Wait 30 seconds before recalculating
 }
 
 export function calculateLevel(xp: number): number {

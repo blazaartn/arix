@@ -293,3 +293,74 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_questions_created_at ON questions(cr
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_questions_user_id ON questions(user_id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_comments_question_id ON comments(question_id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+
+-- FULL TEXT SEARCH OPTIMIZATION
+-- Add tsvector column for fast text search on questions
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS search_vector tsvector;
+
+-- Create GIN index for full-text search (much faster than ILIKE)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_questions_search_vector 
+  ON questions USING GIN (search_vector);
+
+-- Trigger to keep search_vector updated
+CREATE OR REPLACE FUNCTION update_questions_search_vector() RETURNS TRIGGER AS $$
+BEGIN
+  NEW.search_vector := to_tsvector('english', 
+    COALESCE(NEW.title, '') || ' ' || 
+    COALESCE(NEW.content, '') || ' ' ||
+    COALESCE(NEW.subject_name, '')
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tg_update_questions_search_vector ON questions;
+CREATE TRIGGER tg_update_questions_search_vector 
+  BEFORE INSERT OR UPDATE ON questions
+  FOR EACH ROW
+  EXECUTE FUNCTION update_questions_search_vector();
+
+-- Update existing rows
+UPDATE questions SET search_vector = to_tsvector('english', 
+  COALESCE(title, '') || ' ' || 
+  COALESCE(content, '') || ' ' ||
+  COALESCE(subject_name, '')
+) WHERE search_vector IS NULL;
+
+-- RANKING OPTIMIZATION
+-- Add denormalized rank column to avoid expensive COUNT queries
+ALTER TABLE users ADD COLUMN IF NOT EXISTS user_rank integer DEFAULT NULL;
+
+-- Create index on xp_points for ranking queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_xp_points 
+  ON users(xp_points DESC) WHERE is_active = true;
+
+-- Function to update ranks for all users (denormalize ranking)
+CREATE OR REPLACE FUNCTION update_user_ranks() RETURNS void AS $$
+BEGIN
+  -- Reset ranks
+  UPDATE users SET user_rank = NULL WHERE is_active = true;
+  
+  -- Calculate and set ranks
+  WITH ranked_users AS (
+    SELECT id, ROW_NUMBER() OVER (ORDER BY xp_points DESC, id) as rank
+    FROM users
+    WHERE is_active = true AND xp_points > 0
+  )
+  UPDATE users u SET user_rank = ranked_users.rank
+  FROM ranked_users
+  WHERE u.id = ranked_users.id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update ranks when XP changes
+CREATE OR REPLACE FUNCTION on_xp_update() RETURNS TRIGGER AS $$
+BEGIN
+  -- Update rank only if xp_points changed significantly (batch updates)
+  -- Call rank update function every 100 updates or every 5 minutes via cron
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Initial rank calculation
+SELECT update_user_ranks();

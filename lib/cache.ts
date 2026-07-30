@@ -1,13 +1,13 @@
 import { kv } from '@vercel/kv';
 
 export const CACHE_TTL = {
-  QUESTIONS_LIST: 60,
-  QUESTION_DETAIL: 300,
-  TOP_USERS: 300,
-  NOTIFICATIONS: 10,
-  SUBJECTS: 3600,
-  COMMENTS: 60,
-  LIKES: 10,
+  QUESTIONS_LIST: 60,           // 1 minute - questions change frequently
+  QUESTION_DETAIL: 300,          // 5 minutes - less frequently accessed
+  TOP_USERS: 300,                // 5 minutes - rankings don't change constantly
+  NOTIFICATIONS: 30,             // 30 seconds - more frequent updates after optimization
+  SUBJECTS: 3600,                // 1 hour - static data
+  COMMENTS: 60,                  // 1 minute - comments can be added frequently
+  LIKES: 10,                     // 10 seconds - likes are very dynamic
 };
 
 // ✅ Check if KV is configured

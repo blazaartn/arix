@@ -117,7 +117,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // ✅ List questions with userLiked
+    // ✅ Optimized: Use correlated subqueries only where necessary
     let queryText = `
       SELECT 
         q.id,
@@ -155,19 +155,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const conditions: string[] = [];
 
     if (search) {
-      conditions.push(`(
-        q.title ILIKE $${params.length + 1} OR 
-        q.content ILIKE $${params.length + 1} OR 
-        q.subject_name ILIKE $${params.length + 1}
-      )`);
-      params.push(`%${search}%`);
+      // Use full-text search for better performance
+      conditions.push(`q.search_vector @@ to_tsquery('english', $${params.length + 1})`);
+      // Convert search term to tsquery format (handle spaces)
+      const searchTerms = search.trim().split(/\s+/).join(' & ');
+      params.push(searchTerms);
     }
 
     if (conditions.length > 0) {
       queryText += ` WHERE ${conditions.join(' AND ')}`;
     }
-
-    queryText += ` GROUP BY q.id, u.id`;
 
     if (sort === 'popular') {
       queryText += ` ORDER BY like_count DESC, q.created_at DESC`;
@@ -182,11 +179,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const result = await query(queryText, params);
 
-    // ✅ Get user likes for all questions
-    const questionIds = result.rows.map(q => q.id);
+    // ✅ Optimized: Batch check user likes with single query if user is logged in
     let userLikeMap: Record<string, boolean> = {};
+    const questionIds = result.rows.map(q => q.id);
 
-    if (questionIds.length > 0 && session && session.user?.id) {
+    if (questionIds.length > 0 && session?.user?.id) {
       const userLikesResult = await query(
         `SELECT question_id FROM likes WHERE user_id = $1 AND question_id = ANY($2)`,
         [session.user.id, questionIds]
