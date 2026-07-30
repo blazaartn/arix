@@ -13,13 +13,13 @@
   --foreground-secondary: #64748b;
   --foreground-tertiary: #94a3b8;
   
-  /* Primary Colors - Blue/Indigo Gradient */
-  --primary: #3b82f6;
-  --primary-dark: #1e40af;
-  --primary-light: #60a5fa;
+  /* Primary Colors - Orange Gradient */
+  --primary: #f97316;
+  --primary-dark: #c2410c;
+  --primary-light: #fb923c;
   
   /* Accents */
-  --accent: #06b6d4;
+  --accent: #f97316;
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;

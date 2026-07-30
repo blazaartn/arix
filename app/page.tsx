@@ -61,14 +61,14 @@ function MenuDrawer({ isOpen, onClose, session, onLogout }: { isOpen: boolean; o
               <img 
                 src={session?.user?.avatar_url || '/default-avatar.png'} 
                 alt={session?.user?.name} 
-                className="w-12 h-12 rounded-lg border-2 border-blue-500/30 object-cover" 
+                className="w-12 h-12 rounded-lg border-2 border-orange-500/30 object-cover" 
                 onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }} 
               />
               <div>
                 <p className="font-semibold text-slate-900 dark:text-slate-50">{session?.user?.name}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px]">{session?.user?.email}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">★ Niv. {session?.user?.level || 1}</span>
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">★ Niv. {session?.user?.level || 1}</span>
                   <span className="text-xs text-slate-300 dark:text-slate-600">•</span>
                   <span className="text-xs text-slate-500 dark:text-slate-400">{formatNumber(session?.user?.xp_points || 0)} XP</span>
                 </div>
@@ -87,8 +87,8 @@ function MenuDrawer({ isOpen, onClose, session, onLogout }: { isOpen: boolean; o
               onClick={() => handleNavigation(item.href)} 
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition group"
             >
-              <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900 transition">
-                <item.icon className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+              <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center group-hover:bg-orange-100 dark:group-hover:bg-orange-900 transition">
+                <item.icon className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-orange-600 dark:group-hover:text-orange-400" />
               </div>
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-50">{item.label}</span>
             </button>

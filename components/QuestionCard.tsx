@@ -126,19 +126,19 @@ export const QuestionCard = memo(function QuestionCard({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden group">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-orange-200 dark:hover:border-orange-600 transition-all duration-300 overflow-hidden group">
       {/* Header with author info */}
       <div className="flex items-center gap-3 p-5">
         <Link href={`/profile/${question.user_id}`} className="flex-shrink-0">
-          <img src={question.author_avatar || '/default-avatar.png'} alt={question.author_name} className="w-11 h-11 rounded-lg border-2 border-blue-500/20 object-cover hover:border-blue-500 transition" />
+          <img src={question.author_avatar || '/default-avatar.png'} alt={question.author_name} className="w-11 h-11 rounded-lg border-2 border-orange-500/20 object-cover hover:border-orange-500 transition" />
         </Link>
         <div className="flex-1 min-w-0">
-          <Link href={`/profile/${question.user_id}`} className="font-semibold text-slate-900 dark:text-slate-50 text-sm flex items-center gap-1.5 hover:text-blue-600 transition">
+          <Link href={`/profile/${question.user_id}`} className="font-semibold text-slate-900 dark:text-slate-50 text-sm flex items-center gap-1.5 hover:text-orange-600 transition">
             {question.author_name || 'Anonyme'}
             <VerifiedBadge size="sm" role={''} />
           </Link>
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded"><BookOpen className="w-3 h-3" />{question.subject_name || 'Général'}</span>
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded"><BookOpen className="w-3 h-3" />{question.subject_name || 'Général'}</span>
             <span>•</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatTime(question.created_at)}</span>
           </div>
@@ -172,15 +172,15 @@ export const QuestionCard = memo(function QuestionCard({
             <Heart className={`w-4 h-4 transition-all duration-200 ${liked ? 'fill-red-500 scale-110' : ''}`} />
             <span>{formatNumber(likesCount)}</span>
           </button>
-          <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition">
+          <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 transition">
             <MessageCircle className="w-4 h-4" />
             <span>{formatNumber(question.comments_count || 0)}</span>
           </button>
-          <button onClick={handleShare} className={`flex items-center gap-1.5 text-sm font-medium transition ${shareCopied ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'}`}>
+          <button onClick={handleShare} className={`flex items-center gap-1.5 text-sm font-medium transition ${shareCopied ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400'}`}>
             {shareCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
           </button>
         </div>
-        <button onClick={() => router.push(`/questions/${question.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 transition group/link">
+        <button onClick={() => router.push(`/questions/${question.id}`)} className="inline-flex items-center gap-1 text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 transition group/link">
           <span>Voir</span>
           <ChevronRight className="w-4 h-4 transition-transform group-hover/link:translate-x-1" />
         </button>

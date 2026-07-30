@@ -120,7 +120,7 @@ export function Sidebar({
             <Trophy className="w-5 h-5 text-amber-500" />
             <h3 className="font-semibold text-slate-900 dark:text-slate-50">Top Contributeurs</h3>
           </div>
-          <Link href="/ranking" className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex items-center gap-1">
+          <Link href="/ranking" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium flex items-center gap-1">
             Voir plus
             <ChevronRight className="w-3 h-3" />
           </Link>
@@ -141,11 +141,11 @@ export function Sidebar({
           <div className="space-y-2">
             {displayTopUsers.map((user, idx) => (
               <Link key={user.id} href={`/profile/${user.id}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
-                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-lg flex items-center justify-center">
+                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">{idx + 1}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate group-hover:text-blue-600">{user.name}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate group-hover:text-orange-600">{user.name}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{user.xp_points} XP • Level {user.level}</p>
                 </div>
               </Link>
@@ -158,10 +158,10 @@ export function Sidebar({
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ListChecks className="w-5 h-5 text-blue-500" />
+            <ListChecks className="w-5 h-5 text-orange-500" />
             <h3 className="font-semibold text-slate-900 dark:text-slate-50">Mes Tâches</h3>
           </div>
-          <Link href="/todos" className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex items-center gap-1">
+          <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium flex items-center gap-1">
             Voir tout
             <ChevronRight className="w-3 h-3" />
           </Link>
@@ -177,7 +177,7 @@ export function Sidebar({
           <div className="text-center py-6">
             <CheckCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Aucune tâche</p>
-            <Link href="/todos" className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium inline-block">
+            <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium inline-block">
               Créer une tâche
             </Link>
           </div>
