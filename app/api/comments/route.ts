@@ -6,21 +6,24 @@ import { addXP, XP_RULES } from '../../../lib/xp';
 import { createNotification } from '../../../lib/notifications';
 import { getCached, CACHE_TTL, invalidateCache, getCacheKey } from '../../../lib/cache';
 
-// GET - Get comments with images (optimized)
+// GET - Get comments with pagination (optimized)
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
     const questionId = searchParams.get('questionId');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const offset = parseInt(searchParams.get('offset') || '0');
     
     if (!questionId) {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
     }
 
-    const cacheKey = getCacheKey('comments', { questionId });
+    const cacheKey = getCacheKey('comments', { questionId, limit, offset });
     
-    const comments = await getCached(
+    const data = await getCached(
       cacheKey,
       async () => {
+        // Get comments with pagination
         const result = await query(`
           SELECT 
             c.id,
@@ -43,17 +46,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           LEFT JOIN users u ON c.user_id = u.id
           WHERE c.question_id = $1
           ORDER BY c.created_at ASC
-        `, [questionId]);
+          LIMIT $2 OFFSET $3
+        `, [questionId, limit, offset]);
 
-        return result.rows || [];
+        // Get total count for pagination
+        const countResult = await query(
+          'SELECT COUNT(*) as count FROM comments WHERE question_id = $1',
+          [questionId]
+        );
+
+        return {
+          comments: result.rows || [],
+          total: parseInt(countResult.rows[0]?.count || 0),
+          hasMore: result.rows.length === limit
+        };
       },
       CACHE_TTL.COMMENTS
     );
 
-    return NextResponse.json({ comments });
+    return NextResponse.json({ 
+      comments: data.comments,
+      total: data.total,
+      hasMore: data.hasMore,
+      limit,
+      offset
+    });
   } catch (error) {
     console.error('Error fetching comments:', error);
-    return NextResponse.json({ comments: [] });
+    return NextResponse.json({ comments: [], total: 0, hasMore: false });
   }
 }
 
@@ -113,10 +133,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       [session.user.id]
     );
 
-    // Invalidate caches
+    // Invalidate only specific question caches - NOT all questions
     await invalidateCache(`comments:{"questionId":"${questionId}"}`);
     await invalidateCache(`question:{"id":"${questionId}"}`);
-    await invalidateCache('questions:*');
 
     return NextResponse.json({
       success: true,
@@ -169,10 +188,9 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     await query('DELETE FROM likes WHERE comment_id = $1', [commentId]);
     await query('DELETE FROM comments WHERE id = $1', [commentId]);
 
-    // Invalidate caches
+    // Invalidate only specific question caches - NOT all questions
     await invalidateCache(`comments:{"questionId":"${questionId}"}`);
     await invalidateCache(`question:{"id":"${questionId}"}`);
-    await invalidateCache('questions:*');
 
     return NextResponse.json({ 
       success: true, 

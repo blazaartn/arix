@@ -26,12 +26,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const data = await getCached(
       cacheKey,
       async () => {
+        // Optimized: Get notifications AND unread count in ONE query using window function
         let queryText = `
           SELECT 
             n.id, n.user_id, n.actor_id, n.type, n.content,
             n.question_id, n.comment_id, n.link,
             n.is_read, n.read_at, n.created_at,
-            u.name as actor_name, u.avatar_url as actor_avatar, u.role as actor_role
+            u.name as actor_name, u.avatar_url as actor_avatar, u.role as actor_role,
+            COUNT(*) FILTER (WHERE NOT n.is_read) OVER () as unread_count
           FROM notifications n
           LEFT JOIN users u ON n.actor_id = u.id
           WHERE n.user_id = $1
@@ -48,18 +50,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
         const result = await query(queryText, params);
 
-        const countResult = await query(
-          'SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = false',
-          [session.user.id]
-        );
+        const unreadCount = result.rows.length > 0 ? parseInt(result.rows[0].unread_count) : 0;
 
         return {
           notifications: result.rows,
-          unreadCount: parseInt(countResult.rows[0].count),
+          unreadCount: unreadCount,
           hasMore: result.rows.length === limit
         };
       },
-      unreadOnly ? CACHE_TTL.NOTIFICATIONS : 30 // shorter cache for read notifications
+      unreadOnly ? CACHE_TTL.NOTIFICATIONS : 60 // Cache unread longer (60 sec) for better performance
     );
 
     return NextResponse.json({
@@ -105,17 +104,18 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Get updated unread count with fast query
     const countResult = await query(
       'SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = false',
       [session.user.id]
     );
 
-    // Invalidate cache
-    await invalidateCache(`notifications:*"userId":"${session.user.id}"*`);
+    // Invalidate cache for this user
+    await invalidateCache(`notifications:{"userId":"${session.user.id}"*`);
 
     return NextResponse.json({
       success: true,
-      unreadCount: parseInt(countResult.rows[0].count)
+      unreadCount: parseInt(countResult.rows[0].count || 0)
     });
 
   } catch (error) {

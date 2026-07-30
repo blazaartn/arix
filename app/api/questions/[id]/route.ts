@@ -50,7 +50,7 @@ export async function GET(
             [id]
         );
 
-        // Get comments with images
+        // Get comments with images - OPTIMIZED: Use JSON aggregation to avoid N+1
         const commentsResult = await query(`
             SELECT 
                 c.id,
@@ -60,21 +60,21 @@ export async function GET(
                 u.name as author_name,
                 u.avatar_url as author_avatar,
                 u.role as author_role,
-                (SELECT COUNT(*) FROM likes WHERE comment_id = c.id) as like_count
+                (SELECT COUNT(*) FROM likes WHERE comment_id = c.id) as like_count,
+                COALESCE(
+                    (SELECT json_agg(
+                        json_build_object(
+                            'id', i.id,
+                            'image_url', i.image_url
+                        ) ORDER BY i.upload_order ASC
+                    ) FROM images i WHERE i.comment_id = c.id),
+                    '[]'::json
+                ) as images
             FROM comments c
             LEFT JOIN users u ON c.user_id = u.id
             WHERE c.question_id = $1
             ORDER BY c.created_at ASC
         `, [id]);
-
-        // Get images for each comment
-        for (const comment of commentsResult.rows) {
-            const commentImages = await query(
-                'SELECT id, image_url FROM images WHERE comment_id = $1 ORDER BY upload_order ASC',
-                [comment.id]
-            );
-            comment.images = commentImages.rows || [];
-        }
 
         const question = {
             ...questionResult.rows[0],
