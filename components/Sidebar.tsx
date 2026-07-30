@@ -40,7 +40,7 @@ export function Sidebar({
   const [loadingTodos, setLoadingTodos] = useState(todos.length === 0);
   const [loadingTopUsers, setLoadingTopUsers] = useState(topUsers.length === 0);
 
-  // ✅ Fetch todos if not provided
+  // ✅ Fetch todos if not provided (only when logged in)
   useEffect(() => {
     const fetchTodos = async () => {
       if (!session || todos.length > 0) {
@@ -64,10 +64,11 @@ export function Sidebar({
     fetchTodos();
   }, [session, todos]);
 
-  // ✅ Fetch top users if not provided
+  // ✅ Fetch top users - ALWAYS fetch, even when not logged in
   useEffect(() => {
     const fetchTopUsers = async () => {
-      if (!session || topUsers.length > 0) {
+      // If we already have topUsers from props, use them
+      if (topUsers.length > 0) {
         setLoadingTopUsers(false);
         return;
       }
@@ -86,7 +87,7 @@ export function Sidebar({
     };
 
     fetchTopUsers();
-  }, [session, topUsers]);
+  }, [topUsers]); // ✅ Removed session dependency
 
   const displayTodos = todos.length > 0 ? todos : localTodos;
   const displayTopUsers = topUsers.length > 0 ? topUsers : localTopUsers;
@@ -95,17 +96,17 @@ export function Sidebar({
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-32 mb-3"></div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm animate-pulse">
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 mb-3"></div>
           <div className="space-y-2">
-            <div className="h-12 bg-gray-200 rounded-lg"></div>
-            <div className="h-12 bg-gray-200 rounded-lg"></div>
-            <div className="h-12 bg-gray-200 rounded-lg"></div>
+            <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+            <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+            <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm animate-pulse">
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24 mb-3"></div>
+          <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded"></div>
         </div>
       </div>
     );
@@ -113,7 +114,7 @@ export function Sidebar({
 
   return (
     <div className="space-y-4">
-      {/* Top Users Section */}
+      {/* Top Users Section - ALWAYS SHOWS */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -154,51 +155,53 @@ export function Sidebar({
         )}
       </div>
 
-      {/* TODOS Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <ListChecks className="w-5 h-5 text-orange-500" />
-            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Mes Tâches</h3>
-          </div>
-          <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium flex items-center gap-1">
-            Voir tout
-            <ChevronRight className="w-3 h-3" />
-          </Link>
-        </div>
-
-        {loadingTodos ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
-            ))}
-          </div>
-        ) : displayTodos.length === 0 ? (
-          <div className="text-center py-6">
-            <CheckCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Aucune tâche</p>
-            <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium inline-block">
-              Créer une tâche
+      {/* TODOS Section - Only shows when logged in */}
+      {session && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ListChecks className="w-5 h-5 text-orange-500" />
+              <h3 className="font-semibold text-slate-900 dark:text-slate-50">Mes Tâches</h3>
+            </div>
+            <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium flex items-center gap-1">
+              Voir tout
+              <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {displayTodos.slice(0, 4).map((todo) => (
-              <div key={todo.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition ${todo.completed ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`} />
-                <span className={`text-sm flex-1 truncate ${todo.completed ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                  {todo.text}
-                </span>
-                {todo.due_date && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">
-                    {new Date(todo.due_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+
+          {loadingTodos ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+              ))}
+            </div>
+          ) : displayTodos.length === 0 ? (
+            <div className="text-center py-6">
+              <CheckCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Aucune tâche</p>
+              <Link href="/todos" className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium inline-block">
+                Créer une tâche
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {displayTodos.slice(0, 4).map((todo) => (
+                <div key={todo.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition ${todo.completed ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`} />
+                  <span className={`text-sm flex-1 truncate ${todo.completed ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                    {todo.text}
                   </span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                  {todo.due_date && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">
+                      {new Date(todo.due_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

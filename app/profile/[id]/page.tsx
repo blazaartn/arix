@@ -54,7 +54,6 @@ function formatTimeAgo(dateString: string): string {
     return formatDate(dateString);
 }
 
-// ✅ Share Profile Button
 function ShareProfileButton({ userId, userName }: { userId: string; userName: string }) {
     const { showToast } = useToast();
     const [copied, setCopied] = useState(false);
@@ -132,19 +131,24 @@ function ProfileContent() {
     const [loading, setLoading] = useState(true);
     const [isOwnProfile, setIsOwnProfile] = useState(false);
 
+    // ✅ Get userId from params - handle both string and array
     const userId = params?.id as string;
 
     useEffect(() => {
+        // ✅ Don't fetch if no userId
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
+
         const fetchProfile = async () => {
-            if (!userId) return;
-            
             setLoading(true);
             try {
-                // Fetch user profile
+                // ✅ Fetch user profile
                 const userRes = await fetch(`/api/user/${userId}`);
                 const userData = await userRes.json();
                 
-                if (userData.success) {
+                if (userData.success && userData.user) {
                     setProfileUser(userData.user);
                     setIsOwnProfile(session?.user?.id === userData.user.id);
                 } else {
@@ -153,7 +157,7 @@ function ProfileContent() {
                     return;
                 }
 
-                // Fetch user's posts
+                // ✅ Fetch user's posts
                 const postsRes = await fetch(`/api/user/${userId}/posts`);
                 const postsData = await postsRes.json();
                 
@@ -171,6 +175,7 @@ function ProfileContent() {
         fetchProfile();
     }, [userId, session, router, showToast]);
 
+    // ✅ Show loading
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -179,6 +184,7 @@ function ProfileContent() {
         );
     }
 
+    // ✅ User not found
     if (!profileUser) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -207,7 +213,6 @@ function ProfileContent() {
                         </h1>
                     </div>
                     <div className="flex items-center gap-2">
-                        {/* ✅ Share Profile Button */}
                         <ShareProfileButton userId={profileUser.id} userName={profileUser.name} />
                         
                         {isOwnProfile && (
@@ -293,13 +298,7 @@ function ProfileContent() {
                         </span>
                     </div>
 
-                    {loading ? (
-                        <div className="space-y-4">
-                            <PostSkeleton />
-                            <PostSkeleton />
-                            <PostSkeleton />
-                        </div>
-                    ) : posts.length === 0 ? (
+                    {posts.length === 0 ? (
                         <div className="text-center py-12">
                             <BookOpen className="w-16 h-16 text-gray-200 mx-auto mb-4" />
                             <p className="text-gray-500 font-medium">Aucune question publiée</p>

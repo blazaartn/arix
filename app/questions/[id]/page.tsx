@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signIn } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import {
   ArrowLeft, Send, Eye, Award, ThumbsUp,
   Image as ImageIcon, X, Home, Code, CheckCircle,
   AlertCircle, Trash2, Edit2, MoreVertical,
-  Loader2, Check
+  Loader2, Check, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +20,10 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import { useLikes } from '@/hooks/useLikes';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+
+// ============================================
+// TYPES
+// ============================================
 
 interface Image {
   id: string;
@@ -52,6 +56,7 @@ interface Question {
   author_role: string;
   view_count: number;
   created_at: string;
+  updated_at?: string;
   comments_count: number;
   like_count: number;
   images: Image[];
@@ -60,6 +65,10 @@ interface Question {
   code_content?: string;
   code_language?: string;
 }
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
 
 function formatNumber(num: number): string {
   const n = typeof num === 'number' ? num : parseInt(String(num)) || 0;
@@ -81,7 +90,70 @@ function formatTime(dateString: string): string {
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
-// ✅ Share Button Component
+// ============================================
+// MATH RENDERING
+// ============================================
+
+function renderMath(content: string): string {
+  if (typeof window === 'undefined') return content;
+  
+  try {
+    const mathRegex = /\$\$([\s\S]*?)\$\$/g;
+    const inlineRegex = /\$([^\$]+?)\$/g;
+    
+    let rendered = content;
+    
+    rendered = rendered.replace(mathRegex, (match, math) => {
+      try {
+        return katex.renderToString(math.trim(), {
+          displayMode: true,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return match;
+      }
+    });
+    
+    rendered = rendered.replace(inlineRegex, (match, math) => {
+      try {
+        return katex.renderToString(math.trim(), {
+          displayMode: false,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return match;
+      }
+    });
+    
+    return rendered;
+  } catch {
+    return content;
+  }
+}
+
+function MathContent({ content, className = '' }: { content: string; className?: string }) {
+  const [renderedHtml, setRenderedHtml] = useState('');
+
+  useEffect(() => {
+    setRenderedHtml(renderMath(content));
+  }, [content]);
+
+  if (!content) return null;
+
+  return (
+    <div 
+      className={`math-content ${className}`}
+      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+    />
+  );
+}
+
+// ============================================
+// SHARE BUTTON
+// ============================================
+
 function ShareButton({ url, title }: { url: string; title: string }) {
   const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -99,7 +171,7 @@ function ShareButton({ url, title }: { url: string; title: string }) {
 
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      showToast('🔗 Lien copié dans le presse-papier !', 'success');
+      showToast('🔗 Lien copié !', 'success');
       setTimeout(() => setCopied(false), 3000);
     } catch {
       try {
@@ -110,7 +182,7 @@ function ShareButton({ url, title }: { url: string; title: string }) {
         document.execCommand('copy');
         document.body.removeChild(textarea);
         setCopied(true);
-        showToast('🔗 Lien copié dans le presse-papier !', 'success');
+        showToast('🔗 Lien copié !', 'success');
         setTimeout(() => setCopied(false), 3000);
       } catch {
         showToast('Impossible de copier le lien', 'error');
@@ -133,69 +205,36 @@ function ShareButton({ url, title }: { url: string; title: string }) {
   );
 }
 
-// ✅ Math rendering function
-function renderMath(content: string): string {
-  if (typeof window === 'undefined') return content;
+// ============================================
+// IMAGE VIEWER
+// ============================================
+
+function ImageViewer({ imageUrl, isOpen, onClose }: { imageUrl: string | null; isOpen: boolean; onClose: () => void }) {
+  if (!isOpen || !imageUrl) return null;
   
-  try {
-    // Replace $$...$$ with rendered math (block display)
-    const mathRegex = /\$\$([\s\S]*?)\$\$/g;
-    // Replace $...$ with rendered math (inline display)
-    const inlineRegex = /\$([^\$]+?)\$/g;
-    
-    let rendered = content;
-    
-    // Render block math ($$ ... $$) - do this first
-    rendered = rendered.replace(mathRegex, (match, math) => {
-      try {
-        return katex.renderToString(math.trim(), {
-          displayMode: true,
-          throwOnError: false,
-          trust: true,
-        });
-      } catch {
-        return match;
-      }
-    });
-    
-    // Render inline math ($ ... $)
-    rendered = rendered.replace(inlineRegex, (match, math) => {
-      try {
-        return katex.renderToString(math.trim(), {
-          displayMode: false,
-          throwOnError: false,
-          trust: true,
-        });
-      } catch {
-        return match;
-      }
-    });
-    
-    return rendered;
-  } catch {
-    return content;
-  }
-}
-
-// ✅ Math Content Component
-function MathContent({ content, className = '' }: { content: string; className?: string }) {
-  const [renderedHtml, setRenderedHtml] = useState('');
-
-  useEffect(() => {
-    setRenderedHtml(renderMath(content));
-  }, [content]);
-
-  if (!content) return null;
-
   return (
-    <div 
-      className={`math-content ${className}`}
-      dangerouslySetInnerHTML={{ __html: renderedHtml }}
-    />
+    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+      <button 
+        onClick={onClose} 
+        className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10 p-2 hover:bg-white/10 rounded-full"
+      >
+        <X className="w-8 h-8" />
+      </button>
+      <img 
+        src={imageUrl} 
+        alt="Plein écran" 
+        className="max-w-full max-h-full object-contain rounded-lg" 
+        onClick={(e) => e.stopPropagation()} 
+        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} 
+      />
+    </div>
   );
 }
 
-// Question Detail Skeleton
+// ============================================
+// SKELETON LOADER
+// ============================================
+
 function QuestionDetailSkeleton() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -244,18 +283,67 @@ function QuestionDetailSkeleton() {
   );
 }
 
+// ============================================
+// COMMENT PAGINATION
+// ============================================
+
+function CommentPagination({ 
+  currentPage, 
+  totalPages, 
+  onPageChange,
+  isLoading
+}: { 
+  currentPage: number; 
+  totalPages: number; 
+  onPageChange: (page: number) => void;
+  isLoading: boolean;
+}) {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 mt-4">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage <= 1 || isLoading}
+        className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
+      >
+        {isLoading ? <LoadingSpinner size="sm" /> : '←'}
+      </button>
+      <span className="text-sm text-gray-600">
+        {currentPage} / {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage >= totalPages || isLoading}
+        className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
+      >
+        {isLoading ? <LoadingSpinner size="sm" /> : '→'}
+      </button>
+    </div>
+  );
+}
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
 function QuestionDetailContent() {
   const { data: session, status } = useSession();
   const params = useParams();
   const router = useRouter();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  
+  // States
   const [newComment, setNewComment] = useState('');
   const [commentImages, setCommentImages] = useState<File[]>([]);
   const [commentImagePreviews, setCommentImagePreviews] = useState<string[]>([]);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [commentPage, setCommentPage] = useState(1);
+  const [showFullContent, setShowFullContent] = useState(false);
   const commentsPerPage = 10;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [forceRefresh, setForceRefresh] = useState(0);
 
   // Get current URL for sharing
   const [shareUrl, setShareUrl] = useState('');
@@ -265,36 +353,60 @@ function QuestionDetailContent() {
     }
   }, []);
 
-  // Fetch question data
+  // ============================================
+  // FETCH QUESTION DATA - FORCED
+  // ============================================
+  
   const { 
     data: question, 
     isLoading, 
     error,
     refetch 
   } = useQuery({
-    queryKey: ['question', params.id],
+    queryKey: ['question', params.id, forceRefresh],
     queryFn: async () => {
+      // ✅ USE THE MAIN API ROUTE WITH QUERY PARAM
       const res = await fetch(`/api/questions?id=${params.id}`);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (!data.success || !data.question) throw new Error('Question non trouvée');
       
-      const allComments = data.question.comments || [];
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      
+      const data = await res.json();
+      
+      // ✅ Handle both response formats
+      const questionData = data.data || data.question;
+      
+      if (data.error) throw new Error(data.error);
+      if (!data.success || !questionData) throw new Error('Question non trouvée');
+      
+      // ✅ Ensure all comments are loaded
+      const allComments = questionData.comments || [];
       const start = (commentPage - 1) * commentsPerPage;
       const end = start + commentsPerPage;
       const paginatedComments = allComments.slice(start, end);
       
       return {
-        ...data.question,
+        ...questionData,
         comments: paginatedComments,
-        totalComments: allComments.length
+        totalComments: allComments.length,
+        like_count: parseInt(questionData.like_count) || 0,
+        comments_count: parseInt(questionData.comments_count) || 0,
+        view_count: parseInt(questionData.view_count) || 0,
+        userLiked: questionData.userLiked || false,
       };
     },
-    staleTime: 60000,
-    retry: 2,
+    staleTime: 0, // ✅ Force fresh fetch
+    gcTime: 0, // ✅ Don't cache
+    retry: 3,
+    retryDelay: 1000,
+    enabled: !!params.id,
   });
 
-  // Instant likes
+  // ============================================
+  // LIKES
+  // ============================================
+  
   const { 
     count: likesCount, 
     liked, 
@@ -305,7 +417,10 @@ function QuestionDetailContent() {
     question?.userLiked || false
   );
 
-  // Comment mutation
+  // ============================================
+  // COMMENT MUTATIONS
+  // ============================================
+  
   const commentMutation = useMutation({
     mutationFn: async (content: string) => {
       if (!session) {
@@ -344,6 +459,8 @@ function QuestionDetailContent() {
         setCommentImages([]);
         setCommentImagePreviews([]);
         showToast('Commentaire ajouté !', 'success');
+        // ✅ Force refresh
+        setForceRefresh(prev => prev + 1);
         refetch();
         queryClient.invalidateQueries({ queryKey: ['comments'] });
       } else if (data && data.error) {
@@ -355,7 +472,6 @@ function QuestionDetailContent() {
     },
   });
 
-  // Delete comment mutation
   const deleteCommentMutation = useMutation({
     mutationFn: async (commentId: string) => {
       const res = await fetch(`/api/comments?id=${commentId}`, { method: 'DELETE' });
@@ -364,6 +480,8 @@ function QuestionDetailContent() {
     onSuccess: (data) => {
       if (data.success) {
         showToast('Commentaire supprimé', 'success');
+        // ✅ Force refresh
+        setForceRefresh(prev => prev + 1);
         refetch();
       } else {
         showToast(data.error || 'Erreur', 'error');
@@ -374,6 +492,10 @@ function QuestionDetailContent() {
     },
   });
 
+  // ============================================
+  // HANDLERS
+  // ============================================
+  
   const handleLike = () => {
     if (!session) {
       showToast('Connectez-vous pour aimer', 'warning');
@@ -411,14 +533,6 @@ function QuestionDetailContent() {
     setCommentImagePreviews(commentImagePreviews.filter((_, i) => i !== index));
   };
 
-  const handleCommentLike = (commentId: string) => {
-    fetch('/api/comments/like', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commentId })
-    }).catch(() => {});
-  };
-
   const handleDeleteComment = (commentId: string) => {
     if (!confirm('Supprimer ce commentaire ?')) return;
     deleteCommentMutation.mutate(commentId);
@@ -428,9 +542,31 @@ function QuestionDetailContent() {
     if (page >= 1 && page !== commentPage) {
       setCommentPage(page);
       document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth' });
+      // ✅ Force refresh when changing page
+      setForceRefresh(prev => prev + 1);
     }
   };
 
+  const handleCommentLike = (commentId: string) => {
+    fetch('/api/comments/like', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commentId })
+    }).catch(() => {});
+  };
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [newComment]);
+
+  // ============================================
+  // LOADING & ERROR STATES
+  // ============================================
+  
   if (isLoading || status === 'loading') {
     return <QuestionDetailSkeleton />;
   }
@@ -438,32 +574,68 @@ function QuestionDetailContent() {
   if (error || !question) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
+        <div className="text-center max-w-md px-4">
           <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">{error instanceof Error ? error.message : 'Question non trouvée'}</p>
-          <Link href="/" className="mt-4 inline-block text-orange-500 hover:text-orange-600">
-            Retour à l'accueil
-          </Link>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Question non trouvée</h2>
+          <p className="text-gray-500 text-sm mb-4">
+            {error instanceof Error ? error.message : 'Cette question n\'existe pas ou a été supprimée.'}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => {
+                setForceRefresh(prev => prev + 1);
+                refetch();
+              }}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition shadow-lg shadow-orange-500/25"
+            >
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Réessayer
+            </button>
+            <Link 
+              href="/" 
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Retour à l'accueil
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
   const totalPages = Math.ceil((question.totalComments || 0) / commentsPerPage);
+  const shouldTruncate = question.content.length > 500 && !showFullContent;
+  const truncatedContent = shouldTruncate ? question.content.slice(0, 500) + '...' : question.content;
 
+  // ============================================
+  // RENDER
+  // ============================================
+  
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-4 py-3">
         <div className="flex items-center justify-between max-w-3xl mx-auto">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <button 
+              onClick={() => router.back()} 
+              className="p-2 hover:bg-gray-100 rounded-lg transition"
+              aria-label="Retour"
+            >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-bold text-gray-900 truncate max-w-[120px] sm:max-w-xs">Détails</h1>
+            <h1 className="text-lg font-bold text-gray-900 truncate max-w-[120px] sm:max-w-xs">
+              Détails
+            </h1>
           </div>
           <div className="flex items-center gap-1">
             <ShareButton url={shareUrl} title={question.title} />
-            <Link href="/" className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <Link 
+              href="/" 
+              className="p-2 hover:bg-gray-100 rounded-lg transition"
+              aria-label="Accueil"
+            >
               <Home className="w-5 h-5 text-gray-600" />
             </Link>
           </div>
@@ -471,51 +643,78 @@ function QuestionDetailContent() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">
-        {/* Question Card */}
+        {/* ========================================== */}
+        {/* QUESTION CARD */}
+        {/* ========================================== */}
+        
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+          {/* Author */}
           <div className="flex items-center gap-3 mb-4">
-            <img 
-              src={question.author_avatar || '/default-avatar.png'} 
-              alt={question.author_name}
-              className="w-12 h-12 rounded-full border-2 border-orange-500/20"
-              onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
-            />
+            <Link href={`/profile/${question.user_id}`} className="flex-shrink-0">
+              <img 
+                src={question.author_avatar || '/default-avatar.png'} 
+                alt={question.author_name}
+                className="w-12 h-12 rounded-full border-2 border-orange-500/20 hover:border-orange-500 transition object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
+              />
+            </Link>
             <div>
-              <p className="font-semibold text-gray-900 flex items-center gap-1.5">
+              <Link 
+                href={`/profile/${question.user_id}`}
+                className="font-semibold text-gray-900 flex items-center gap-1.5 hover:text-orange-500 transition"
+              >
                 {question.author_name || 'Anonyme'}
                 <VerifiedBadge role={question.author_role || 'student'} size="sm" />
-              </p>
+              </Link>
               <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
                 <span className="flex items-center gap-1">
                   <BookOpen className="w-3 h-3" />
                   {question.subject_name || 'Sans matière'}
                 </span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   {formatTime(question.created_at)}
                 </span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span className="flex items-center gap-1">
                   <Eye className="w-3 h-3" />
-                  {question.view_count || 0}
+                  {formatNumber(question.view_count || 0)}
                 </span>
               </div>
             </div>
           </div>
 
+          {/* Title */}
           <h1 className="text-2xl font-bold text-gray-900 mb-3">{question.title}</h1>
           
-          {/* ✅ CONTENT WITH MATH RENDERING */}
+          {/* Content with Math */}
           <div className="text-gray-700 mb-4 prose prose-sm max-w-none">
-            <MathContent content={question.content} />
+            <MathContent content={truncatedContent} />
           </div>
 
+          {/* Show more/less */}
+          {question.content.length > 500 && (
+            <button
+              onClick={() => setShowFullContent(!showFullContent)}
+              className="text-sm text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1 mb-4"
+            >
+              {showFullContent ? (
+                <>Voir moins <ChevronUp className="w-4 h-4" /></>
+              ) : (
+                <>Voir plus <ChevronDown className="w-4 h-4" /></>
+              )}
+            </button>
+          )}
+
+          {/* Code Block */}
           {question.code_content && (
             <div className="mb-4">
               <div className="flex items-center gap-2 mb-2">
                 <Code className="w-4 h-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-600">Code</span>
+                <span className="text-sm font-medium text-gray-600">
+                  {question.code_language || 'Code'}
+                </span>
               </div>
               <pre className="p-4 bg-gray-900 rounded-lg overflow-x-auto text-sm text-gray-200 font-mono">
                 <code>{question.code_content}</code>
@@ -523,8 +722,9 @@ function QuestionDetailContent() {
             </div>
           )}
 
+          {/* Images */}
           {question.images && question.images.length > 0 && (
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className={`grid gap-2 mb-4 ${question.images.length === 1 ? 'grid-cols-1' : question.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
               {question.images.map((img: Image) => (
                 <div 
                   key={img.id}
@@ -537,12 +737,17 @@ function QuestionDetailContent() {
                     className="rounded-xl object-cover w-full h-48 hover:scale-105 transition-transform duration-300"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full transition">
+                      Agrandir
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
+          {/* Actions */}
           <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
             <button 
               onClick={handleLike}
@@ -550,49 +755,64 @@ function QuestionDetailContent() {
               className={`
                 flex items-center gap-2 text-sm transition-all duration-200
                 ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}
-                cursor-pointer
+                ${!session ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
               `}
             >
               <Heart className={`w-5 h-5 transition-all duration-200 ${liked ? 'fill-red-500 scale-110' : ''}`} />
               <span className="font-medium">{formatNumber(likesCount)}</span>
             </button>
-            <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition">
+            
+            <button 
+              onClick={() => document.getElementById('comments-section')?.scrollIntoView({ behavior: 'smooth' })}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition"
+            >
               <MessageCircle className="w-5 h-5" />
               <span className="font-medium">{formatNumber(question.totalComments || 0)}</span>
             </button>
+            
             <ShareButton url={shareUrl} title={question.title} />
           </div>
         </div>
 
-        {/* Comments Section */}
+        {/* ========================================== */}
+        {/* COMMENTS SECTION */}
+        {/* ========================================== */}
+        
         <div id="comments-section" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-orange-500" />
             {question.totalComments || 0} Commentaire{question.totalComments !== 1 ? 's' : ''}
           </h2>
 
-          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+          {/* Comments List */}
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
             {question.comments?.length === 0 ? (
               <div className="text-center py-8">
                 <MessageCircle className="w-12 h-12 text-gray-200 mx-auto mb-2" />
-                <p className="text-gray-400">Aucun commentaire</p>
+                <p className="text-gray-400 font-medium">Aucun commentaire</p>
                 <p className="text-sm text-gray-300">Soyez le premier à commenter !</p>
               </div>
             ) : (
               question.comments?.map((comment: Comment) => (
                 <div key={comment.id} className="flex gap-3 group animate-fadeIn">
-                  <img 
-                    src={comment.author_avatar || '/default-avatar.png'} 
-                    alt={comment.author_name}
-                    className="w-10 h-10 rounded-full flex-shrink-0 border-2 border-gray-200"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
-                  />
+                  <Link href={`/profile/${comment.user_id}`} className="flex-shrink-0">
+                    <img 
+                      src={comment.author_avatar || '/default-avatar.png'} 
+                      alt={comment.author_name}
+                      className="w-10 h-10 rounded-full border-2 border-gray-200 hover:border-orange-500 transition object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
+                    />
+                  </Link>
                   <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3 hover:bg-gray-100 transition">
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-800 text-sm flex items-center gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link 
+                          href={`/profile/${comment.user_id}`}
+                          className="font-medium text-gray-800 text-sm flex items-center gap-1.5 hover:text-orange-500 transition"
+                        >
                           {comment.author_name}
                           <VerifiedBadge role={comment.author_role || 'student'} size="sm" />
-                        </p>
+                        </Link>
                         <p className="text-xs text-gray-400">
                           {formatTime(comment.created_at)}
                         </p>
@@ -600,15 +820,18 @@ function QuestionDetailContent() {
                       {session?.user?.id === comment.user_id && (
                         <button 
                           onClick={() => handleDeleteComment(comment.id)}
-                          className="text-gray-400 hover:text-red-500 transition p-1"
+                          className="text-gray-400 hover:text-red-500 transition p-1 rounded-lg hover:bg-red-50"
+                          aria-label="Supprimer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
+                    
                     <p className="text-gray-700 text-sm">{comment.content}</p>
+                    
                     {comment.images && comment.images.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2 mt-2">
+                      <div className={`grid gap-2 mt-2 ${comment.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3'}`}>
                         {comment.images.map((img: Image) => (
                           <div 
                             key={img.id}
@@ -624,12 +847,21 @@ function QuestionDetailContent() {
                         ))}
                       </div>
                     )}
+                    
+                    <button
+                      onClick={() => handleCommentLike(comment.id)}
+                      className="flex items-center gap-1 mt-2 text-xs text-gray-400 hover:text-red-500 transition"
+                    >
+                      <Heart className="w-3.5 h-3.5" />
+                      <span>{formatNumber(comment.like_count || 0)}</span>
+                    </button>
                   </div>
                 </div>
               ))
             )}
           </div>
 
+          {/* Comment Pagination */}
           <CommentPagination 
             currentPage={commentPage}
             totalPages={totalPages || 1}
@@ -637,33 +869,45 @@ function QuestionDetailContent() {
             isLoading={isLoading}
           />
 
+          {/* Comment Form */}
           {session ? (
             <form onSubmit={handleCommentSubmit} className="space-y-3 mt-4 pt-4 border-t border-gray-100">
               <div className="flex gap-2">
                 <img 
                   src={session.user.avatar_url || '/default-avatar.png'} 
                   alt={session.user.name}
-                  className="w-10 h-10 rounded-full flex-shrink-0 border-2 border-gray-200"
+                  className="w-10 h-10 rounded-full flex-shrink-0 border-2 border-gray-200 object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
                 />
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Écrire un commentaire..."
-                  className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
-                  rows={2}
-                  disabled={commentMutation.isPending}
-                />
+                <div className="flex-1">
+                  <textarea
+                    ref={textareaRef}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Écrire un commentaire..."
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none transition"
+                    rows={2}
+                    disabled={commentMutation.isPending}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleCommentSubmit(e);
+                      }
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Comment Image Previews */}
               {commentImagePreviews.length > 0 && (
                 <div className="flex gap-2 ml-12">
                   {commentImagePreviews.map((preview, index) => (
-                    <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                    <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-gray-200">
                       <img src={preview} alt="" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeCommentImage(index)}
-                        className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -673,8 +917,9 @@ function QuestionDetailContent() {
               )}
 
               <div className="flex gap-2 ml-12">
-                <label className="px-3 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 cursor-pointer transition">
+                <label className="px-3 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 cursor-pointer transition flex items-center gap-1 text-sm text-gray-600">
                   <ImageIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">Images</span>
                   <input 
                     type="file"
                     accept="image/*"
@@ -688,6 +933,7 @@ function QuestionDetailContent() {
                   loading={commentMutation.isPending}
                   disabled={(!newComment.trim() && commentImages.length === 0)}
                   fullWidth
+                  className="flex-1"
                 >
                   <Send className="w-4 h-4" />
                   Commenter
@@ -705,6 +951,7 @@ function QuestionDetailContent() {
         </div>
       </main>
 
+      {/* Image Viewer */}
       <ImageViewer 
         imageUrl={viewerImage}
         isOpen={!!viewerImage}
@@ -714,52 +961,9 @@ function QuestionDetailContent() {
   );
 }
 
-// Image Viewer
-function ImageViewer({ imageUrl, isOpen, onClose }: { imageUrl: string | null; isOpen: boolean; onClose: () => void }) {
-  if (!isOpen || !imageUrl) return null;
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10"><X className="w-8 h-8" /></button>
-      <img src={imageUrl} alt="Full screen" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-    </div>
-  );
-}
-
-// Comment Pagination
-function CommentPagination({ 
-  currentPage, 
-  totalPages, 
-  onPageChange,
-  isLoading
-}: { 
-  currentPage: number; 
-  totalPages: number; 
-  onPageChange: (page: number) => void;
-  isLoading: boolean;
-}) {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 mt-4">
-      <button
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage <= 1 || isLoading}
-        className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
-      >
-        {isLoading ? <LoadingSpinner size="sm" /> : '←'}
-      </button>
-      <span className="text-sm text-gray-600">
-        {currentPage} / {totalPages}
-      </span>
-      <button
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage >= totalPages || isLoading}
-        className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1"
-      >
-        {isLoading ? <LoadingSpinner size="sm" /> : '→'}
-      </button>
-    </div>
-  );
-}
+// ============================================
+// EXPORT
+// ============================================
 
 export default function QuestionDetailPage() {
   return (
