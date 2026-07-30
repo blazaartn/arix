@@ -274,7 +274,7 @@ function QuestionDetailContent() {
   } = useQuery({
     queryKey: ['question', params.id],
     queryFn: async () => {
-      const res = await fetch(`/api/questions?id=${params.id}`);
+      const res = await fetch(`/api/questions/${params.id}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       if (!data.success || !data.question) throw new Error('Question non trouvée');
@@ -284,9 +284,15 @@ function QuestionDetailContent() {
       const end = start + commentsPerPage;
       const paginatedComments = allComments.slice(start, end);
       
+      // Map user_liked to userLiked for comments consistency
+      const mappedComments = paginatedComments.map((comment: any) => ({
+        ...comment,
+        userLiked: comment.user_liked
+      }));
+      
       return {
         ...data.question,
-        comments: paginatedComments,
+        comments: mappedComments,
         totalComments: allComments.length
       };
     },
