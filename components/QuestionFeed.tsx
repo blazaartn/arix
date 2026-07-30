@@ -39,21 +39,21 @@ interface QuestionFeedProps {
 
 function QuestionSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 animate-pulse">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 animate-pulse">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-11 h-11 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
         <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-32 mb-1"></div>
-          <div className="h-3 bg-gray-200 rounded w-24"></div>
+          <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 mb-2"></div>
+          <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
         </div>
       </div>
-      <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-      <div className="h-4 bg-gray-200 rounded w-full mb-1"></div>
-      <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
-        <div className="h-5 bg-gray-200 rounded w-12"></div>
-        <div className="h-5 bg-gray-200 rounded w-12"></div>
-        <div className="h-5 bg-gray-200 rounded w-12"></div>
+      <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-3"></div>
+      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full mb-2"></div>
+      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+      <div className="flex items-center gap-4 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+        <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+        <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+        <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
       </div>
     </div>
   );
@@ -62,13 +62,13 @@ function QuestionSkeleton() {
 function PaginationControls({ currentPage, totalPages, onPageChange, isLoading }: { currentPage: number; totalPages: number; onPageChange: (page: number) => void; isLoading: boolean }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="flex items-center justify-center gap-2 py-4 mt-4 border-t border-gray-100">
-      <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1 || isLoading} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
-        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Précédent
+    <div className="flex items-center justify-center gap-3 py-6 mt-6 border-t border-slate-200 dark:border-slate-700">
+      <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage <= 1 || isLoading} className="px-4 py-2.5 text-sm font-medium bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-50 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
+        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}Précédent
       </button>
-      <span className="text-sm text-gray-600 font-medium">Page {currentPage} sur {totalPages}</span>
-      <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages || isLoading} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
-        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Suivant
+      <span className="text-sm text-slate-600 dark:text-slate-400 font-medium px-3 py-2">Page {currentPage} / {totalPages}</span>
+      <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage >= totalPages || isLoading} className="px-4 py-2.5 text-sm font-medium bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-50 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
+        Suivant {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
       </button>
     </div>
   );
@@ -85,12 +85,12 @@ export function QuestionFeed({ questions, loading, isLoggedIn, currentUserId, on
 
   if (questions.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
-        <BookOpen className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-        <p className="text-gray-500 font-medium">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-12 text-center border border-slate-200 dark:border-slate-700 shadow-sm">
+        <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+        <p className="text-slate-600 dark:text-slate-300 font-medium text-lg mb-1">
           {searchQuery ? 'Aucun résultat' : 'Aucune question'}
         </p>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           {searchQuery ? 'Essayez une autre recherche' : 'Soyez le premier à poser une question !'}
         </p>
       </div>
