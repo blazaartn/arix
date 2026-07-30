@@ -48,7 +48,7 @@ export const MOCK_SERIES: SeriesItem[] = [
         type: 'exam',
         year: '2025',
         session: 'principale',
-        pageUrl: '/series/1',
+        pageUrl: 'http://www.bacweb.tn/bac/2025/principale/informatique/math.pdf',
         is_completed: false,
         description: 'Examen complet de Mathématiques avec corrigé détaillé.'
     },
