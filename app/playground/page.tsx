@@ -271,7 +271,10 @@ function PlaygroundContent() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  // Auto-run on change
+  // ✅ REMOVED the auto-switch useEffect that forced preview on output change.
+  // Now the user controls the view manually.
+
+  // Auto-run on change (but does not force preview)
   useEffect(() => {
     const timer = setTimeout(() => runCode(), 500);
     return () => clearTimeout(timer);
@@ -283,13 +286,6 @@ function PlaygroundContent() {
       runCode();
     }
   }, [currentProject]);
-
-  // ✅ When output changes, automatically show preview on mobile
-  useEffect(() => {
-    if (output && !isPreviewMode && window.innerWidth < 1024) {
-      setIsPreviewMode(true);
-    }
-  }, [output, isPreviewMode]);
 
   // Create new project
   const createProject = useCallback(() => {
@@ -525,11 +521,10 @@ function PlaygroundContent() {
     );
   }
 
-  // ✅ Mobile Preview Fullscreen
+  // Mobile Preview Fullscreen
   if (isPreviewFullscreen) {
     return (
       <div className="fixed inset-0 z-[400] bg-white flex flex-col">
-        {/* Fullscreen Preview Header */}
         <div className="bg-gray-800 px-4 py-3 flex items-center justify-between">
           <span className="text-white font-medium text-sm">Aperçu</span>
           <button
@@ -539,7 +534,6 @@ function PlaygroundContent() {
             <X className="w-6 h-6" />
           </button>
         </div>
-        {/* Fullscreen Preview Iframe */}
         <iframe
           ref={iframeRef}
           srcDoc={output}
@@ -554,7 +548,6 @@ function PlaygroundContent() {
 
   return (
     <div className={`min-h-screen bg-gray-900 text-white flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Link href="/" className="p-1.5 hover:bg-gray-700 rounded-lg transition flex-shrink-0">
@@ -565,7 +558,6 @@ function PlaygroundContent() {
             <span className="hidden xs:inline">Playground</span>
           </h1>
           
-          {/* Project selector */}
           <div className="relative ml-1 sm:ml-2">
             <select
               value={currentProjectId || ''}
@@ -585,7 +577,6 @@ function PlaygroundContent() {
             </select>
           </div>
           
-          {/* New project button */}
           <button
             onClick={() => setShowNewProjectModal(true)}
             className="p-1 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white flex-shrink-0"
@@ -596,7 +587,6 @@ function PlaygroundContent() {
         </div>
         
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-          {/* Add file button */}
           <button 
             onClick={() => {
               const types: FileType[] = ['html', 'css', 'javascript'];
@@ -614,7 +604,6 @@ function PlaygroundContent() {
             <Plus className="w-4 h-4" />
           </button>
           
-          {/* Copy */}
           <button 
             onClick={copyCode}
             className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
@@ -623,7 +612,6 @@ function PlaygroundContent() {
             <Copy className="w-4 h-4" />
           </button>
           
-          {/* Download */}
           <button 
             onClick={downloadFile}
             className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
@@ -632,7 +620,6 @@ function PlaygroundContent() {
             <Download className="w-4 h-4" />
           </button>
           
-          {/* Delete project */}
           <button 
             onClick={() => setShowDeleteProject(currentProjectId)}
             className="p-1.5 hover:bg-red-500/20 rounded-lg transition text-gray-400 hover:text-red-400"
@@ -641,7 +628,6 @@ function PlaygroundContent() {
             <Trash2 className="w-4 h-4" />
           </button>
           
-          {/* Fullscreen */}
           <button 
             onClick={toggleFullscreen}
             className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
@@ -650,7 +636,6 @@ function PlaygroundContent() {
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           
-          {/* Dark/Light */}
           <button 
             onClick={() => setIsDark(!isDark)}
             className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
@@ -658,7 +643,6 @@ function PlaygroundContent() {
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           
-          {/* Run button */}
           <button 
             onClick={runCode}
             disabled={isRunning}
@@ -674,11 +658,9 @@ function PlaygroundContent() {
         </div>
       </header>
       
-      {/* Main layout */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
         {/* Editor section */}
         <div className={`flex-1 flex flex-col min-h-0 ${isPreviewMode ? 'hidden lg:flex' : ''}`}>
-          {/* Tabs */}
           <div className="bg-gray-800 border-b border-gray-700 flex overflow-x-auto scrollbar-hide">
             {currentProject.files.map((file) => (
               <div
@@ -704,7 +686,6 @@ function PlaygroundContent() {
             ))}
           </div>
           
-          {/* Editor */}
           <div className="flex-1 relative min-h-[300px] sm:min-h-[400px] lg:min-h-0">
             <textarea
               ref={textareaRef}
@@ -725,7 +706,6 @@ function PlaygroundContent() {
             </div>
           </div>
           
-          {/* Console toggle */}
           <button
             onClick={() => setShowConsole(!showConsole)}
             className={`flex items-center gap-2 px-3 py-1.5 text-xs border-t border-gray-700 transition ${
@@ -755,7 +735,7 @@ function PlaygroundContent() {
           )}
         </div>
         
-        {/* ✅ Preview section - Always visible on mobile, hidden on desktop if not in preview mode */}
+        {/* Preview section */}
         <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-700 ${
           isPreviewMode ? 'flex' : 'hidden lg:flex'
         }`}>
@@ -765,7 +745,7 @@ function PlaygroundContent() {
               <span className="hidden sm:inline">Aperçu</span>
             </div>
             <div className="flex items-center gap-2">
-              {/* ✅ Mobile: Toggle between Editor and Preview */}
+              {/* ✅ Mobile toggle button - works without auto-switch */}
               <button
                 onClick={() => setIsPreviewMode(!isPreviewMode)}
                 className="lg:hidden text-xs text-gray-400 hover:text-white transition px-2 py-1 rounded bg-gray-700"
@@ -773,7 +753,6 @@ function PlaygroundContent() {
                 {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
               </button>
               
-              {/* ✅ Mobile fullscreen preview button */}
               <button
                 onClick={togglePreviewFullscreen}
                 className="p-1 hover:bg-gray-700 rounded transition text-gray-400 hover:text-white"
@@ -806,7 +785,6 @@ function PlaygroundContent() {
         </div>
       </div>
       
-      {/* Footer shortcuts */}
       <div className="bg-gray-800 border-t border-gray-700 px-3 py-1.5 text-[10px] text-gray-500 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span>⌘+Enter</span>

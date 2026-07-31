@@ -19,15 +19,23 @@ export async function GET(
         q.subject_name, 
         q.created_at,
         q.view_count,
-        q.is_blocked
+        q.is_blocked,
+        u.name as author_name,
+        u.avatar_url as author_avatar,
+        u.role as author_role,
+        u.user_rank,
+        (SELECT COUNT(*) FROM likes WHERE question_id = q.id) as like_count,
+        (SELECT COUNT(*) FROM comments WHERE question_id = q.id AND is_blocked = false) as comments_count,
+        (SELECT COUNT(*) FROM images WHERE question_id = q.id) as images_count
       FROM questions q
+      LEFT JOIN users u ON q.user_id = u.id
       WHERE q.user_id = $1
         AND q.is_blocked = false
     `;
 
     const params: any[] = [id];
 
-    // ✅ Exclude questions the current user has reported
+    // ✅ Exclude questions the current user has reported (if logged in)
     if (session?.user?.id) {
       const reportedResult = await query(
         `SELECT target_id FROM alerts 
