@@ -111,7 +111,7 @@ function PlaygroundContent() {
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false); // ✅ Manual toggle only
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
@@ -121,7 +121,6 @@ function PlaygroundContent() {
   const [newProjectName, setNewProjectName] = useState('');
   const [showDeleteProject, setShowDeleteProject] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  // ✅ Force iframe re-render
   const [iframeKey, setIframeKey] = useState(0);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -188,7 +187,7 @@ function PlaygroundContent() {
     }));
   }, [currentProject, activeFile, currentProjectId]);
 
-  // ✅ SECURE CODE EXECUTION - sanitize before running
+  // SECURE CODE EXECUTION - sanitize before running
   const sanitizeCode = (code: string): string => {
     let sanitized = code;
     // Remove <script> tags with src or content
@@ -208,7 +207,7 @@ function PlaygroundContent() {
     return sanitized;
   };
 
-  // ✅ Run code - set output and force iframe refresh
+  // Run code – updates output and forces iframe refresh
   const runCode = useCallback(() => {
     if (!currentProject) return;
     
@@ -274,18 +273,15 @@ function PlaygroundContent() {
     // Sanitize the final HTML content
     const sanitizedHtml = sanitizeCode(htmlContent);
     
-    // ✅ Update output and force iframe re-render by incrementing key
+    // ✅ Update output and force iframe re-render
     setOutput(sanitizedHtml);
     setIframeKey(prev => prev + 1);
     setConsoleLogs([]);
     
-    // On mobile, auto-show preview when running
-    if (isMobile && !isPreviewMode) {
-      setIsPreviewMode(true);
-    }
+    // ✅ Removed automatic preview switch on mobile – user controls it manually.
     
     setIsRunning(false);
-  }, [currentProject, isMobile, isPreviewMode]);
+  }, [currentProject]);
 
   // Listen for console messages from iframe
   useEffect(() => {
@@ -483,10 +479,10 @@ function PlaygroundContent() {
     setIsPreviewFullscreen(!isPreviewFullscreen);
   }, [isPreviewFullscreen]);
 
-  // Toggle preview mode (manual)
+  // ✅ Manual toggle for preview mode (called by button)
   const togglePreviewMode = useCallback(() => {
-    setIsPreviewMode(!isPreviewMode);
-  }, [isPreviewMode]);
+    setIsPreviewMode(prev => !prev);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -695,8 +691,8 @@ function PlaygroundContent() {
       
       {/* Main layout */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-        {/* Editor section */}
-        <div className={`flex-1 flex flex-col min-h-0 ${isPreviewMode && isMobile ? 'hidden' : ''}`}>
+        {/* Editor section – visible always on desktop, on mobile hidden when preview is shown */}
+        <div className={`flex-1 flex flex-col min-h-0 ${isMobile && isPreviewMode ? 'hidden' : ''}`}>
           <div className="bg-gray-800 border-b border-gray-700 flex overflow-x-auto scrollbar-hide">
             {currentProject.files.map((file) => (
               <div
@@ -771,17 +767,17 @@ function PlaygroundContent() {
           )}
         </div>
         
-        {/* Preview section */}
+        {/* Preview section – always visible on desktop, on mobile only when isPreviewMode is true */}
         <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-700 ${
-          isPreviewMode || !isMobile ? 'flex' : 'hidden'
-        } ${isMobile && isPreviewMode ? 'flex' : ''}`}>
+          isMobile ? (isPreviewMode ? 'flex' : 'hidden') : 'flex'
+        }`}>
           <div className="bg-gray-800 border-b border-gray-700 px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Eye className="w-4 h-4" />
               <span className="hidden sm:inline">Aperçu</span>
             </div>
             <div className="flex items-center gap-2">
-              {/* Mobile toggle button */}
+              {/* ✅ Manual toggle button – always visible on mobile */}
               {isMobile && (
                 <button
                   onClick={togglePreviewMode}
