@@ -111,7 +111,7 @@ function PlaygroundContent() {
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isPreviewMode, setIsPreviewMode] = useState(false); // ✅ Manual toggle only
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
@@ -120,21 +120,10 @@ function PlaygroundContent() {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [showDeleteProject, setShowDeleteProject] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Detect mobile screen
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Load projects from localStorage on mount
   useEffect(() => {
@@ -207,7 +196,7 @@ function PlaygroundContent() {
     return sanitized;
   };
 
-  // Run code – updates output and forces iframe refresh
+  // Run code
   const runCode = useCallback(() => {
     if (!currentProject) return;
     
@@ -270,15 +259,11 @@ function PlaygroundContent() {
       htmlContent = htmlContent.replace('</body>', scriptTag + '</body>');
     }
     
-    // Sanitize the final HTML content
+    // Sanitize final HTML
     const sanitizedHtml = sanitizeCode(htmlContent);
-    
-    // ✅ Update output and force iframe re-render
     setOutput(sanitizedHtml);
-    setIframeKey(prev => prev + 1);
+    setIframeKey(prev => prev + 1);  // Force iframe re-render
     setConsoleLogs([]);
-    
-    // ✅ Removed automatic preview switch on mobile – user controls it manually.
     
     setIsRunning(false);
   }, [currentProject]);
@@ -689,10 +674,11 @@ function PlaygroundContent() {
         </div>
       </header>
       
-      {/* Main layout */}
+      {/* Main layout: always flex on desktop, stacked on mobile */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-        {/* Editor section – visible always on desktop, on mobile hidden when preview is shown */}
-        <div className={`flex-1 flex flex-col min-h-0 ${isMobile && isPreviewMode ? 'hidden' : ''}`}>
+        {/* Editor section: visible on desktop always; on mobile only when not in preview mode */}
+        <div className={`flex-1 flex flex-col min-h-0 ${isPreviewMode ? 'hidden lg:flex' : ''}`}>
+          {/* Tabs */}
           <div className="bg-gray-800 border-b border-gray-700 flex overflow-x-auto scrollbar-hide">
             {currentProject.files.map((file) => (
               <div
@@ -718,6 +704,7 @@ function PlaygroundContent() {
             ))}
           </div>
           
+          {/* Editor area */}
           <div className="flex-1 relative min-h-[300px] sm:min-h-[400px] lg:min-h-0">
             <textarea
               ref={textareaRef}
@@ -732,12 +719,12 @@ function PlaygroundContent() {
               autoCapitalize="off"
               autoCorrect="off"
             />
-            
             <div className="absolute bottom-2 right-3 text-[10px] text-gray-500 bg-gray-800/80 px-2 py-1 rounded">
               {activeFile?.name || ''} • {activeFile?.content?.split('\n').length || 0} lignes
             </div>
           </div>
           
+          {/* Console toggle */}
           <button
             onClick={() => setShowConsole(!showConsole)}
             className={`flex items-center gap-2 px-3 py-1.5 text-xs border-t border-gray-700 transition ${
@@ -767,9 +754,9 @@ function PlaygroundContent() {
           )}
         </div>
         
-        {/* Preview section – always visible on desktop, on mobile only when isPreviewMode is true */}
+        {/* Preview section: visible on desktop always; on mobile only when in preview mode */}
         <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-700 ${
-          isMobile ? (isPreviewMode ? 'flex' : 'hidden') : 'flex'
+          isPreviewMode ? 'flex' : 'hidden lg:flex'
         }`}>
           <div className="bg-gray-800 border-b border-gray-700 px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -778,14 +765,12 @@ function PlaygroundContent() {
             </div>
             <div className="flex items-center gap-2">
               {/* ✅ Manual toggle button – always visible on mobile */}
-              {isMobile && (
-                <button
-                  onClick={togglePreviewMode}
-                  className="text-xs text-gray-400 hover:text-white transition px-2 py-1 rounded bg-gray-700"
-                >
-                  {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
-                </button>
-              )}
+              <button
+                onClick={togglePreviewMode}
+                className="lg:hidden text-xs text-gray-400 hover:text-white transition px-2 py-1 rounded bg-gray-700"
+              >
+                {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
+              </button>
               <button
                 onClick={togglePreviewFullscreen}
                 className="p-1 hover:bg-gray-700 rounded transition text-gray-400 hover:text-white"
@@ -818,7 +803,7 @@ function PlaygroundContent() {
         </div>
       </div>
       
-      {/* Footer shortcuts */}
+      {/* Footer */}
       <div className="bg-gray-800 border-t border-gray-700 px-3 py-1.5 text-[10px] text-gray-500 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span>⌘+Enter</span>
@@ -844,7 +829,7 @@ function PlaygroundContent() {
         </div>
       </div>
       
-      {/* New Project Modal */}
+      {/* Modals */}
       {showNewProjectModal && (
         <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowNewProjectModal(false)}>
           <div className="bg-gray-800 rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
@@ -879,7 +864,6 @@ function PlaygroundContent() {
         </div>
       )}
       
-      {/* Delete Project Modal */}
       {showDeleteProject && (
         <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowDeleteProject(null)}>
           <div className="bg-gray-800 rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
