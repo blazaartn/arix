@@ -236,20 +236,5 @@ export const PROJECTS: Project[] = [
         ],
         is_completed: false,
     },
-    {
-        id: '4',
-        title: 'Gestion de Tâches',
-        description: 'Créez une API REST complète pour gérer des tâches avec PHP.',
-        category: 'php',
-        pageUrl: '/projects/4',
-        technologies: ['PHP', 'MySQL'],
-        tasks: [
-            'Configurer la base de données',
-            'Créer les routes CRUD',
-            'Sécuriser l\'API avec JWT',
-            'Tester les endpoints avec Postman'
-        ],
-        is_completed: false,
-    },
    
 ];
