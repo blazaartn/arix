@@ -238,11 +238,11 @@ export const PROJECTS: Project[] = [
     },
     {
         id: '4',
-        title: 'API REST - Gestion de Tâches',
+        title: 'Gestion de Tâches',
         description: 'Créez une API REST complète pour gérer des tâches avec PHP.',
         category: 'php',
         pageUrl: '/projects/4',
-        technologies: ['PHP', 'MySQL', 'Composer'],
+        technologies: ['PHP', 'MySQL'],
         tasks: [
             'Configurer la base de données',
             'Créer les routes CRUD',
@@ -251,49 +251,5 @@ export const PROJECTS: Project[] = [
         ],
         is_completed: false,
     },
-    {
-        id: '5',
-        title: 'Base de Données - Gestion d\'École',
-        description: 'Concevez une base de données pour une école avec SQL.',
-        category: 'sql',
-        pageUrl: '/projects/5',
-        technologies: ['SQL', 'PostgreSQL'],
-        tasks: [
-            'Créer le schéma (étudiants, professeurs, cours)',
-            'Écrire des requêtes complexes (JOIN, GROUP BY)',
-            'Créer des vues et index',
-            'Optimiser les performances des requêtes'
-        ],
-        is_completed: false,
-    },
-    {
-        id: '6',
-        title: 'Application Web - Suivi des Étudiants',
-        description: 'Créez une application web pour suivre les étudiants avec Python.',
-        category: 'python',
-        pageUrl: '/projects/6',
-        technologies: ['Python', 'Flask', 'SQLite'],
-        tasks: [
-            'Créer les routes CRUD pour les étudiants',
-            'Gérer les données avec SQLAlchemy',
-            'Créer un frontend avec Jinja2',
-            'Tester l\'application avec pytest'
-        ],
-        is_completed: false,
-    },
-    {
-        id: '7',
-        title: 'Application de Questions/Réponses',
-        description: 'Créez une application complète de questions/réponses avec React et Node.js.',
-        category: 'fullstack',
-        pageUrl: '/projects/7',
-        technologies: ['React', 'Node.js', 'PostgreSQL', 'TailwindCSS'],
-        tasks: [
-            'Configurer le backend avec Express et PostgreSQL',
-            'Créer le frontend avec React et Tailwind',
-            'Connecter API et frontend',
-            'Ajouter des fonctionnalités (likes, commentaires)'
-        ],
-        is_completed: false,
-    },
+   
 ];
