@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../lib/auth';
 import { query } from '../../../lib/db';
+import { invalidateCache } from '../../../lib/cache';
 
 // ============================================
 // PUT - Update username
@@ -29,7 +30,6 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
             );
         }
 
-        // ✅ Update user name
         await query(
             'UPDATE users SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
             [name.trim(), session.user.id]
@@ -51,7 +51,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 }
 
 // ============================================
-// DELETE - Delete account (CASCADE)
+// DELETE - Hard delete account with CASCADE
 // ============================================
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const session = await getServerSession(authOptions);
@@ -62,20 +62,30 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     try {
         const userId = session.user.id;
 
-        // ✅ Soft delete - mark as inactive instead of hard delete
-        // This preserves data integrity while removing user access
-        await query(
-            'UPDATE users SET is_active = false, deleted_at = CURRENT_TIMESTAMP, email = CONCAT(email, \'_deleted_\', NOW()) WHERE id = $1',
+        // ✅ Hard delete – ON DELETE CASCADE removes all related records
+        const result = await query(
+            'DELETE FROM users WHERE id = $1 RETURNING id',
             [userId]
         );
 
-        // If you want HARD DELETE (remove all data) instead:
-        // All ON DELETE CASCADE will handle this automatically
-        // await query('DELETE FROM users WHERE id = $1', [userId]);
+        if (result.rows.length === 0) {
+            return NextResponse.json(
+                { error: 'Utilisateur non trouvé' },
+                { status: 404 }
+            );
+        }
+
+        // ✅ Invalidate cache
+        await invalidateCache(`user:${userId}`);
+        await invalidateCache(`user:posts:${userId}`);
+        await invalidateCache(`questions:*`);
+        await invalidateCache(`comments:*`);
+        await invalidateCache(`ranking:*`);
+        await invalidateCache(`notifications:*"userId":"${userId}"*`);
 
         return NextResponse.json({
             success: true,
-            message: 'Compte supprimé avec succès'
+            message: 'Compte et toutes les données associées supprimées avec succès'
         });
 
     } catch (error) {
@@ -113,7 +123,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             );
         }
 
-        // ✅ Save message
         const result = await query(
             `INSERT INTO messages (user_id, subject, content, status)
              VALUES ($1, $2, $3, 'unread')

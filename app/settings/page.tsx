@@ -58,7 +58,7 @@ function Toast({
   );
 }
 
-// Modal Component
+// ✅ UPDATED Modal with confirmation input
 function Modal({ 
   isOpen, 
   onClose, 
@@ -66,7 +66,12 @@ function Modal({
   title, 
   message, 
   confirmText,
-  confirmColor = 'bg-red-500 hover:bg-red-600'
+  confirmColor = 'bg-red-500 hover:bg-red-600',
+  inputValue = '',
+  onInputChange = () => {},
+  inputPlaceholder = 'Tapez SUPPRIMER pour confirmer',
+  requiredText = 'SUPPRIMER',
+  isConfirmDisabled = false
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
@@ -75,8 +80,15 @@ function Modal({
   message: string; 
   confirmText: string;
   confirmColor?: string;
+  inputValue?: string;
+  onInputChange?: (value: string) => void;
+  inputPlaceholder?: string;
+  requiredText?: string;
+  isConfirmDisabled?: boolean;
 }) {
   if (!isOpen) return null;
+
+  const isInputValid = inputValue === requiredText;
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -87,11 +99,32 @@ function Modal({
           </div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h3>
         </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">{message}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{message}</p>
+        
+        {/* ✅ Confirmation input */}
+        {onInputChange && (
+          <div className="mb-4">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder={inputPlaceholder}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              autoFocus
+            />
+            {inputValue && inputValue !== requiredText && (
+              <p className="text-xs text-red-500 mt-1">Le texte ne correspond pas</p>
+            )}
+          </div>
+        )}
+        
         <div className="flex gap-2">
           <button
             onClick={onConfirm}
-            className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition ${confirmColor}`}
+            disabled={isConfirmDisabled || (!!onInputChange && !isInputValid)}
+            className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition ${confirmColor} ${
+              (isConfirmDisabled || (!!onInputChange && !isInputValid)) ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             {confirmText}
           </button>
@@ -144,7 +177,6 @@ function SettingsContent() {
       setEmail(session.user.email || '');
     }
     
-    // Load theme preference
     const savedTheme = localStorage.getItem('bacplus_theme') as 'light' | 'dark' | 'system' | null;
     if (savedTheme) {
       setTheme(savedTheme);
@@ -206,7 +238,7 @@ function SettingsContent() {
     }
   };
 
-  // Delete account
+  // Delete account - now with input validation
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'SUPPRIMER') {
       showToast('Écrivez SUPPRIMER pour confirmer', 'warning');
@@ -269,7 +301,7 @@ function SettingsContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
-      {/* Delete Account Modal */}
+      {/* ✅ Updated Delete Account Modal with input */}
       <Modal
         isOpen={showDeleteModal}
         onClose={() => {
@@ -280,6 +312,11 @@ function SettingsContent() {
         title="Supprimer le compte"
         message="Cette action est irréversible. Toutes vos données seront supprimées définitivement. Pour confirmer, écrivez 'SUPPRIMER' ci-dessous."
         confirmText={isDeleting ? 'Suppression...' : 'Confirmer'}
+        inputValue={deleteConfirmText}
+        onInputChange={setDeleteConfirmText}
+        inputPlaceholder="Tapez SUPPRIMER pour confirmer"
+        requiredText="SUPPRIMER"
+        isConfirmDisabled={isDeleting}
       />
 
       {/* Header */}
@@ -384,7 +421,6 @@ function SettingsContent() {
             </div>
           </div>
         </div>
-
 
         {/* 4. Playground Cache */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 shadow-sm mb-3">

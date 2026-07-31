@@ -74,7 +74,6 @@ const FILE_ICONS: Record<FileType, any> = {
   javascript: <FileCode className="w-4 h-4 text-yellow-500" />
 };
 
-// Helper functions
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 }
@@ -87,7 +86,7 @@ function getProjectsFromStorage(): Project[] {
       return JSON.parse(data);
     }
   } catch {
-    // Ignore
+    return [];
   }
   return [];
 }
@@ -121,10 +120,23 @@ function PlaygroundContent() {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [showDeleteProject, setShowDeleteProject] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  // ✅ Force iframe re-render
+  const [iframeKey, setIframeKey] = useState(0);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
+
+  // Detect mobile screen
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Load projects from localStorage on mount
   useEffect(() => {
     const savedProjects = getProjectsFromStorage();
@@ -133,7 +145,6 @@ function PlaygroundContent() {
       setCurrentProjectId(savedProjects[0].id);
       setActiveTabId(savedProjects[0].files[0]?.id || '');
     } else {
-      // Create default project
       const defaultProject: Project = {
         id: generateId(),
         name: 'Mon Projet',
@@ -177,7 +188,27 @@ function PlaygroundContent() {
     }));
   }, [currentProject, activeFile, currentProjectId]);
 
-  // Run code
+  // ✅ SECURE CODE EXECUTION - sanitize before running
+  const sanitizeCode = (code: string): string => {
+    let sanitized = code;
+    // Remove <script> tags with src or content
+    sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Remove event handlers
+    sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
+    sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]+/gi, '');
+    // Remove javascript: URLs
+    sanitized = sanitized.replace(/javascript:/gi, '');
+    // Remove data:text/html
+    sanitized = sanitized.replace(/data:text\/html/gi, '');
+    // Remove external resource tags
+    sanitized = sanitized.replace(/<link\b[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<iframe\b[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<object\b[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<embed\b[^>]*>/gi, '');
+    return sanitized;
+  };
+
+  // ✅ Run code - set output and force iframe refresh
   const runCode = useCallback(() => {
     if (!currentProject) return;
     
@@ -189,6 +220,7 @@ function PlaygroundContent() {
     
     let htmlContent = htmlFile?.content || '';
     
+    // Inject CSS into <style> tag
     if (cssFile && cssFile.content) {
       const styleTag = `<style>/* ${cssFile.name} */\n${cssFile.content}\n</style>`;
       htmlContent = htmlContent.replace(
@@ -197,6 +229,7 @@ function PlaygroundContent() {
       );
     }
     
+    // Wrap JavaScript with console capture and sandboxing
     if (jsFile && jsFile.content) {
       const wrappedJS = `
         (function() {
@@ -238,24 +271,23 @@ function PlaygroundContent() {
       htmlContent = htmlContent.replace('</body>', scriptTag + '</body>');
     }
     
-    setOutput(htmlContent);
+    // Sanitize the final HTML content
+    const sanitizedHtml = sanitizeCode(htmlContent);
+    
+    // ✅ Update output and force iframe re-render by incrementing key
+    setOutput(sanitizedHtml);
+    setIframeKey(prev => prev + 1);
     setConsoleLogs([]);
     
-    setTimeout(() => {
-      if (iframeRef.current) {
-        const iframe = iframeRef.current;
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (doc) {
-          doc.open();
-          doc.write(htmlContent);
-          doc.close();
-        }
-      }
-      setIsRunning(false);
-    }, 100);
-  }, [currentProject]);
+    // On mobile, auto-show preview when running
+    if (isMobile && !isPreviewMode) {
+      setIsPreviewMode(true);
+    }
+    
+    setIsRunning(false);
+  }, [currentProject, isMobile, isPreviewMode]);
 
-  // Listen for console messages
+  // Listen for console messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'console') {
@@ -271,10 +303,7 @@ function PlaygroundContent() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  // ✅ REMOVED the auto-switch useEffect that forced preview on output change.
-  // Now the user controls the view manually.
-
-  // Auto-run on change (but does not force preview)
+  // Auto-run on change
   useEffect(() => {
     const timer = setTimeout(() => runCode(), 500);
     return () => clearTimeout(timer);
@@ -454,6 +483,11 @@ function PlaygroundContent() {
     setIsPreviewFullscreen(!isPreviewFullscreen);
   }, [isPreviewFullscreen]);
 
+  // Toggle preview mode (manual)
+  const togglePreviewMode = useCallback(() => {
+    setIsPreviewMode(!isPreviewMode);
+  }, [isPreviewMode]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -535,9 +569,9 @@ function PlaygroundContent() {
           </button>
         </div>
         <iframe
-          ref={iframeRef}
+          key={`preview-full-${iframeKey}`}
           srcDoc={output}
-          sandbox="allow-scripts allow-modals allow-same-origin"
+          sandbox="allow-scripts allow-modals allow-downloads"
           className="flex-1 w-full bg-white border-none"
           title="Fullscreen Preview"
           loading="lazy"
@@ -548,6 +582,7 @@ function PlaygroundContent() {
 
   return (
     <div className={`min-h-screen bg-gray-900 text-white flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
+      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Link href="/" className="p-1.5 hover:bg-gray-700 rounded-lg transition flex-shrink-0">
@@ -658,9 +693,10 @@ function PlaygroundContent() {
         </div>
       </header>
       
+      {/* Main layout */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
         {/* Editor section */}
-        <div className={`flex-1 flex flex-col min-h-0 ${isPreviewMode ? 'hidden lg:flex' : ''}`}>
+        <div className={`flex-1 flex flex-col min-h-0 ${isPreviewMode && isMobile ? 'hidden' : ''}`}>
           <div className="bg-gray-800 border-b border-gray-700 flex overflow-x-auto scrollbar-hide">
             {currentProject.files.map((file) => (
               <div
@@ -737,22 +773,23 @@ function PlaygroundContent() {
         
         {/* Preview section */}
         <div className={`flex-1 lg:flex-1 bg-white min-h-[250px] sm:min-h-[300px] lg:min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-700 ${
-          isPreviewMode ? 'flex' : 'hidden lg:flex'
-        }`}>
+          isPreviewMode || !isMobile ? 'flex' : 'hidden'
+        } ${isMobile && isPreviewMode ? 'flex' : ''}`}>
           <div className="bg-gray-800 border-b border-gray-700 px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Eye className="w-4 h-4" />
               <span className="hidden sm:inline">Aperçu</span>
             </div>
             <div className="flex items-center gap-2">
-              {/* ✅ Mobile toggle button - works without auto-switch */}
-              <button
-                onClick={() => setIsPreviewMode(!isPreviewMode)}
-                className="lg:hidden text-xs text-gray-400 hover:text-white transition px-2 py-1 rounded bg-gray-700"
-              >
-                {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
-              </button>
-              
+              {/* Mobile toggle button */}
+              {isMobile && (
+                <button
+                  onClick={togglePreviewMode}
+                  className="text-xs text-gray-400 hover:text-white transition px-2 py-1 rounded bg-gray-700"
+                >
+                  {isPreviewMode ? '📝 Éditeur' : '👁️ Aperçu'}
+                </button>
+              )}
               <button
                 onClick={togglePreviewFullscreen}
                 className="p-1 hover:bg-gray-700 rounded transition text-gray-400 hover:text-white"
@@ -760,7 +797,6 @@ function PlaygroundContent() {
               >
                 <Maximize className="w-4 h-4" />
               </button>
-              
               <button
                 onClick={() => {
                   if (iframeRef.current) {
@@ -775,9 +811,10 @@ function PlaygroundContent() {
           </div>
           
           <iframe
+            key={`preview-${iframeKey}`}
             ref={iframeRef}
             srcDoc={output}
-            sandbox="allow-scripts allow-modals allow-same-origin"
+            sandbox="allow-scripts allow-modals allow-downloads"
             className="flex-1 w-full bg-white border-none"
             title="Code Preview"
             loading="lazy"
@@ -785,6 +822,7 @@ function PlaygroundContent() {
         </div>
       </div>
       
+      {/* Footer shortcuts */}
       <div className="bg-gray-800 border-t border-gray-700 px-3 py-1.5 text-[10px] text-gray-500 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span>⌘+Enter</span>

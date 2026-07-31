@@ -10,7 +10,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    // ✅ Increment view count
+    // Increment view count
     try {
       await query(
         'UPDATE questions SET view_count = view_count + 1 WHERE id = $1',
@@ -20,7 +20,7 @@ export async function GET(
       console.warn('⚠️ View count update failed, continuing');
     }
 
-    // ✅ Get question with author and all counts
+    // ✅ DYNAMIC RANK: Count users with more XP than the author
     const questionResult = await query(`
       SELECT 
         q.id,
@@ -38,6 +38,12 @@ export async function GET(
         u.name as author_name,
         u.avatar_url as author_avatar,
         u.role as author_role,
+        (
+          SELECT COUNT(*) + 1 
+          FROM users u2 
+          WHERE u2.xp_points > u.xp_points 
+            AND u2.is_active = true
+        ) as user_rank,
         (SELECT COUNT(*) FROM comments WHERE question_id = q.id AND is_blocked = false) as comments_count,
         (SELECT COUNT(*) FROM likes WHERE question_id = q.id) as like_count
       FROM questions q
@@ -52,7 +58,7 @@ export async function GET(
       );
     }
 
-    // ✅ Check if blocked
+    // Check if blocked
     if (questionResult.rows[0].is_blocked) {
       return NextResponse.json(
         { error: 'Cette question a été bloquée' },
@@ -60,13 +66,13 @@ export async function GET(
       );
     }
 
-    // ✅ Get question images
+    // Get question images
     const imagesResult = await query(
       'SELECT id, image_url, caption, is_primary FROM images WHERE question_id = $1 ORDER BY upload_order ASC',
       [id]
     );
 
-    // ✅ Get comments with images and like counts (only non-blocked)
+    // Get comments with images and like counts (only non-blocked)
     const commentsResult = await query(`
       SELECT 
         c.id,
@@ -76,6 +82,12 @@ export async function GET(
         u.name as author_name,
         u.avatar_url as author_avatar,
         u.role as author_role,
+        (
+          SELECT COUNT(*) + 1 
+          FROM users u2 
+          WHERE u2.xp_points > u.xp_points 
+            AND u2.is_active = true
+        ) as user_rank,
         (SELECT COUNT(*) FROM likes WHERE comment_id = c.id) as like_count,
         COALESCE(
           (SELECT json_agg(
@@ -92,7 +104,7 @@ export async function GET(
       ORDER BY c.created_at ASC
     `, [id]);
 
-    // ✅ Get user like status
+    // Get user like status
     const session = await getServerSession(authOptions);
     let userLiked = false;
     if (session?.user?.id) {
@@ -116,6 +128,7 @@ export async function GET(
       comments_count: parseInt(questionResult.rows[0].comments_count) || 0,
       view_count: parseInt(questionResult.rows[0].view_count) || 0,
       alert_count: parseInt(questionResult.rows[0].alert_count) || 0,
+      user_rank: parseInt(questionResult.rows[0].user_rank) || 0,
     };
 
     return NextResponse.json({ 

@@ -70,6 +70,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         [id]
       );
 
+      // ✅ DYNAMIC RANK: Count users with more XP than the author
       const result = await query(`
         SELECT 
           q.id,
@@ -87,7 +88,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           u.name as author_name,
           u.avatar_url as author_avatar,
           u.role as author_role,
-          u.user_rank,
+          (
+            SELECT COUNT(*) + 1 
+            FROM users u2 
+            WHERE u2.xp_points > u.xp_points 
+              AND u2.is_active = true
+          ) as user_rank,
           COALESCE(
             (SELECT json_agg(
               json_build_object(
@@ -104,9 +110,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         FROM questions q
         LEFT JOIN users u ON q.user_id = u.id
         WHERE q.id = $1
-        GROUP BY q.id, u.id
+        GROUP BY q.id, u.id, u.xp_points
       `, [id]);
 
+      if (result.rows.length === 0) {
+        return NextResponse.json(
+          { error: 'Question non trouvée' },
+          { status: 404 }
+        );
+      }
+
+      // Get comments (only non-blocked)
       const commentsResult = await query(`
         SELECT 
           c.id,
@@ -116,6 +130,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           u.name as author_name,
           u.avatar_url as author_avatar,
           u.role as author_role,
+          (
+            SELECT COUNT(*) + 1 
+            FROM users u2 
+            WHERE u2.xp_points > u.xp_points 
+              AND u2.is_active = true
+          ) as user_rank,
           (SELECT COUNT(*) FROM likes WHERE comment_id = c.id) as like_count,
           COALESCE(
             (SELECT json_agg(
@@ -132,6 +152,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ORDER BY c.created_at ASC
       `, [id]);
 
+      // Check if user liked
       let userLiked = false;
       if (session && session.user?.id) {
         const likeResult = await query(
@@ -149,6 +170,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         comments_count: parseInt(result.rows[0].comments_count) || 0,
         view_count: parseInt(result.rows[0].view_count) || 0,
         alert_count: parseInt(result.rows[0].alert_count) || 0,
+        user_rank: parseInt(result.rows[0].user_rank) || 0,
       };
 
       return NextResponse.json({ 
@@ -158,7 +180,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // ==========================================
-    // LIST QUESTIONS
+    // LIST QUESTIONS (only non-blocked)
     // ==========================================
     const cacheKey = getCacheKey('questions', { search, sort, limit, offset });
     
@@ -181,7 +203,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             u.name as author_name,
             u.avatar_url as author_avatar,
             u.role as author_role,
-            u.user_rank,
+            (
+              SELECT COUNT(*) + 1 
+              FROM users u2 
+              WHERE u2.xp_points > u.xp_points 
+                AND u2.is_active = true
+            ) as user_rank,
             (SELECT COUNT(*) FROM comments WHERE question_id = q.id AND is_blocked = false) as comments_count,
             (SELECT COUNT(*) FROM likes WHERE question_id = q.id) as like_count,
             (SELECT COUNT(*) FROM images WHERE question_id = q.id) as images_count,
@@ -204,6 +231,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const params: any[] = [];
         const conditions: string[] = [];
 
+        // Exclude questions the current user has reported
         if (session?.user?.id) {
           const reportedResult = await query(
             `SELECT target_id FROM alerts 
@@ -233,7 +261,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           queryText += ` AND ${conditions.join(' AND ')}`;
         }
 
-        queryText += ` GROUP BY q.id, u.id`;
+        queryText += ` GROUP BY q.id, u.id, u.xp_points`;
 
         if (sort === 'popular') {
           queryText += ` ORDER BY like_count DESC, q.created_at DESC`;
@@ -255,6 +283,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       CACHE_TTL.QUESTIONS_LIST
     );
 
+    // Get user likes for all questions
     const questionIds = data.questions.map((q: any) => q.id);
     let userLikeMap: Record<string, boolean> = {};
 
@@ -271,6 +300,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const questions = data.questions.map((q: any) => ({
       ...q,
       userLiked: userLikeMap[q.id] || false,
+      user_rank: parseInt(q.user_rank) || 0,
     }));
 
     return NextResponse.json({ 
@@ -353,7 +383,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         u.name as author_name,
         u.avatar_url as author_avatar,
         u.role as author_role,
-        u.user_rank
+        (
+          SELECT COUNT(*) + 1 
+          FROM users u2 
+          WHERE u2.xp_points > u.xp_points 
+            AND u2.is_active = true
+        ) as user_rank
        FROM questions q
        LEFT JOIN users u ON q.user_id = u.id
        WHERE q.id = $1`,
@@ -526,6 +561,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Delete images from blob storage
     const images = await query(
       'SELECT image_url FROM images WHERE question_id = $1',
       [id]

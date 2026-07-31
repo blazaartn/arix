@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { 
     X, Send, Loader2, BookOpen, AlertCircle, CheckCircle, 
     Award, Upload, Trash2, Code, ChevronRight, ChevronLeft,
-    FileText, Image as ImageIcon, FileCode, Sparkles
+    FileText, Image as ImageIcon, FileCode, Sparkles, AlertTriangle
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
@@ -24,26 +24,31 @@ const LANGUAGES = [
     { value: 'text', label: 'Texte simple' },
 ];
 
+// ✅ Code limits
+const MAX_CODE_CHARS = 5000;
+const MAX_CODE_LINES = 150;
+
 export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionModalProps) {
     const { data: session } = useSession();
     
-    // ✅ Step state
+    // Step state
     const [currentStep, setCurrentStep] = useState(1);
     const totalSteps = 3;
     
-    // ✅ Form data
+    // Form data
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [subjectName, setSubjectName] = useState('');
     const [codeContent, setCodeContent] = useState('');
     const [codeLanguage, setCodeLanguage] = useState('javascript');
     const [showCodeEditor, setShowCodeEditor] = useState(false);
+    const [codeError, setCodeError] = useState<string | null>(null);
     
-    // ✅ Image state
+    // Image state
     const [images, setImages] = useState<File[]>([]);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     
-    // ✅ UI state
+    // UI state
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -52,14 +57,20 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
     const fileInputRef = useRef<HTMLInputElement>(null);
     const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // ✅ Reset form when modal opens
+    // ✅ Calculate code stats
+    const codeLines = codeContent.split('\n').length;
+    const codeChars = codeContent.length;
+    const isCodeValid = codeChars <= MAX_CODE_CHARS && codeLines <= MAX_CODE_LINES;
+    const isCodeNearLimit = codeChars > MAX_CODE_CHARS * 0.8 || codeLines > MAX_CODE_LINES * 0.8;
+
+    // Reset form when modal opens
     useEffect(() => {
         if (isOpen) {
             resetForm();
         }
     }, [isOpen]);
 
-    // ✅ Focus code editor when shown
+    // Focus code editor when shown
     useEffect(() => {
         if (showCodeEditor && codeTextareaRef.current) {
             codeTextareaRef.current.focus();
@@ -79,9 +90,10 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
         setSuccess(false);
         setUploadingImages(false);
         setCurrentStep(1);
+        setCodeError(null);
     };
 
-    // ✅ Navigation
+    // Navigation
     const goToNextStep = () => {
         if (currentStep === 1 && !title.trim()) {
             setError('Veuillez entrer un titre');
@@ -105,6 +117,44 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
         setError('');
         if (currentStep > 1) {
             setCurrentStep(currentStep - 1);
+        }
+    };
+
+    // ✅ Validate code before proceeding
+    const validateCode = (): boolean => {
+        if (!codeContent.trim()) {
+            setCodeError(null);
+            return true;
+        }
+
+        if (codeChars > MAX_CODE_CHARS) {
+            setCodeError(`Le code dépasse ${MAX_CODE_CHARS} caractères (${codeChars})`);
+            return false;
+        }
+
+        if (codeLines > MAX_CODE_LINES) {
+            setCodeError(`Le code dépasse ${MAX_CODE_LINES} lignes (${codeLines})`);
+            return false;
+        }
+
+        setCodeError(null);
+        return true;
+    };
+
+    // ✅ Handle code content change with validation
+    const handleCodeChange = (value: string) => {
+        setCodeContent(value);
+        
+        // Auto-validate on change
+        const chars = value.length;
+        const lines = value.split('\n').length;
+        
+        if (chars > MAX_CODE_CHARS) {
+            setCodeError(`⚠️ Dépasse ${MAX_CODE_CHARS} caractères (${chars})`);
+        } else if (lines > MAX_CODE_LINES) {
+            setCodeError(`⚠️ Dépasse ${MAX_CODE_LINES} lignes (${lines})`);
+        } else {
+            setCodeError(null);
         }
     };
 
@@ -141,6 +191,12 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
 
     // ✅ Submit
     const handleSubmit = async () => {
+        // ✅ Validate code before submission
+        if (!validateCode()) {
+            setError(codeError || 'Code invalide');
+            return;
+        }
+
         setLoading(true);
         setError('');
 
@@ -177,7 +233,8 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
                 imageIds: uploadedImageIds
             };
 
-            if (codeContent.trim()) {
+            // ✅ Only include code if valid and within limits
+            if (codeContent.trim() && isCodeValid) {
                 payload.codeContent = codeContent.trim();
                 payload.codeLanguage = codeLanguage;
             }
@@ -209,7 +266,7 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
         }
     };
 
-    // ✅ Step indicator
+    // Step indicator
     const StepIndicator = () => (
         <div className="flex items-center justify-center gap-2 mb-6">
             {[1, 2, 3].map((step) => (
@@ -235,7 +292,7 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
 
     if (!isOpen) return null;
 
-    // ✅ If not logged in, show login prompt
+    // If not logged in, show login prompt
     if (!session) {
         return (
             <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -473,32 +530,62 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
                             {/* Code Editor */}
                             {showCodeEditor && (
                                 <div className="space-y-2 border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-sm font-medium text-gray-700">Langage:</label>
-                                        <select
-                                            value={codeLanguage}
-                                            onChange={(e) => setCodeLanguage(e.target.value)}
-                                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
-                                        >
-                                            {LANGUAGES.map((lang) => (
-                                                <option key={lang.value} value={lang.value}>
-                                                    {lang.label}
-                                                </option>
-                                            ))}
-                                        </select>
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-sm font-medium text-gray-700">Langage:</label>
+                                            <select
+                                                value={codeLanguage}
+                                                onChange={(e) => setCodeLanguage(e.target.value)}
+                                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+                                            >
+                                                {LANGUAGES.map((lang) => (
+                                                    <option key={lang.value} value={lang.value}>
+                                                        {lang.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {/* ✅ Code stats counter */}
+                                        <div className={`text-xs font-medium ${!isCodeValid && codeContent ? 'text-red-500' : isCodeNearLimit && codeContent ? 'text-yellow-500' : 'text-gray-400'}`}>
+                                            {codeChars} caractères • {codeLines} lignes
+                                            {!isCodeValid && codeContent && (
+                                                <span className="ml-1 text-red-500">⚠️</span>
+                                            )}
+                                        </div>
                                     </div>
+                                    
+                                    {/* ✅ Code error/warning message */}
+                                    {codeError && (
+                                        <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                            <span>{codeError}</span>
+                                        </div>
+                                    )}
+                                    
+                                    {isCodeNearLimit && isCodeValid && codeContent && (
+                                        <div className="flex items-center gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">
+                                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                            <span>Proche de la limite maximum</span>
+                                        </div>
+                                    )}
+
                                     <textarea
                                         ref={codeTextareaRef}
                                         value={codeContent}
-                                        onChange={(e) => setCodeContent(e.target.value)}
-                                        placeholder={`Écrivez votre code ${codeLanguage} ici...`}
+                                        onChange={(e) => handleCodeChange(e.target.value)}
+                                        placeholder={`Écrivez votre code ${codeLanguage} ici... (max ${MAX_CODE_CHARS} caractères, ${MAX_CODE_LINES} lignes)`}
                                         rows={6}
-                                        className="w-full px-3 py-2.5 font-mono text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none bg-white"
+                                        className={`w-full px-3 py-2.5 font-mono text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none bg-white ${
+                                            !isCodeValid && codeContent ? 'border-red-300' : 'border-gray-300'
+                                        }`}
                                         spellCheck={false}
                                     />
-                                    <p className="text-xs text-gray-400 text-right">
-                                        {codeContent.length} caractères
-                                    </p>
+                                    
+                                    {/* ✅ Limit info */}
+                                    <div className="flex justify-between text-xs text-gray-400">
+                                        <span>Max {MAX_CODE_CHARS} caractères</span>
+                                        <span>Max {MAX_CODE_LINES} lignes</span>
+                                    </div>
                                 </div>
                             )}
 
@@ -542,8 +629,10 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
                             <button
                                 type="button"
                                 onClick={handleSubmit}
-                                disabled={loading || uploadingImages}
-                                className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-emerald-600 transition shadow-lg shadow-green-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={loading || uploadingImages || (!!codeContent && !isCodeValid)}
+                                className={`flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-medium rounded-lg transition shadow-lg shadow-green-500/25 disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    (!!codeContent && !isCodeValid) ? 'bg-red-500 from-red-500 to-red-600 shadow-red-500/25' : ''
+                                }`}
                             >
                                 {loading ? (
                                     <>
@@ -553,7 +642,7 @@ export function QuestionModal({ isOpen, onClose, onQuestionCreated }: QuestionMo
                                 ) : (
                                     <>
                                         <Sparkles className="w-4 h-4" />
-                                        Publier (+50 XP)
+                                        {!!codeContent && !isCodeValid ? 'Code trop long' : 'Publier (+50 XP)'}
                                     </>
                                 )}
                             </button>
