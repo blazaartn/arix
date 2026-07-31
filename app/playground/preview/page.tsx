@@ -4,33 +4,26 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, RefreshCw, Maximize2, Minimize2, X } from 'lucide-react';
-import { ToastProvider, useToast } from '@/contexts/ToastContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 function PreviewContent() {
   const router = useRouter();
-  const { showToast } = useToast();
   const [html, setHtml] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load the saved HTML from localStorage
     const savedHtml = localStorage.getItem('playground_preview_html');
     if (savedHtml) {
       setHtml(savedHtml);
-    } else {
-      showToast('Aucun code à afficher. Retournez à l\'éditeur et exécutez le code.', 'warning');
     }
     setIsLoading(false);
-  }, [showToast]);
+  }, []);
 
   const refreshPreview = () => {
     const savedHtml = localStorage.getItem('playground_preview_html');
     if (savedHtml) {
       setHtml(savedHtml);
-      showToast('✅ Aperçu actualisé', 'success');
-    } else {
-      showToast('Aucun code à afficher', 'warning');
     }
   };
 
@@ -46,7 +39,6 @@ function PreviewContent() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/playground" className="p-2 hover:bg-gray-700 rounded-lg transition">
@@ -81,7 +73,6 @@ function PreviewContent() {
         </div>
       </header>
 
-      {/* Preview iframe */}
       <div className="flex-1 bg-white">
         {isLoading ? (
           <div className="w-full h-full flex items-center justify-center text-gray-500">

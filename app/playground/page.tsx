@@ -99,7 +99,6 @@ function saveProjectsToStorage(projects: Project[]) {
   }
 }
 
-// Loading skeleton
 function PlaygroundSkeleton() {
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -144,10 +143,9 @@ function PlaygroundSkeleton() {
 
 function PlaygroundContent() {
   const { data: session } = useSession();
-  const { showToast } = useToast();
+  const { showToast } = useToast(); // kept only for other parts of app, but we won't use it here
   const router = useRouter();
 
-  // States
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [activeTabId, setActiveTabId] = useState<string>('');
@@ -165,7 +163,6 @@ function PlaygroundContent() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load projects from localStorage on mount
   useEffect(() => {
     const savedProjects = getProjectsFromStorage();
     if (savedProjects.length > 0) {
@@ -188,7 +185,6 @@ function PlaygroundContent() {
     setIsLoading(false);
   }, []);
 
-  // Save projects when they change
   useEffect(() => {
     if (projects.length > 0 && !isLoading) {
       saveProjectsToStorage(projects);
@@ -198,7 +194,6 @@ function PlaygroundContent() {
   const currentProject = projects.find(p => p.id === currentProjectId);
   const activeFile = currentProject?.files.find(f => f.id === activeTabId) || currentProject?.files[0];
 
-  // Update file content
   const updateFileContent = useCallback((content: string) => {
     if (!currentProject || !activeFile) return;
     setProjects(prev => prev.map(p => {
@@ -215,7 +210,6 @@ function PlaygroundContent() {
     }));
   }, [currentProject, activeFile, currentProjectId]);
 
-  // SECURE CODE SANITIZATION
   const sanitizeCode = (code: string): string => {
     let sanitized = code;
     sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -230,7 +224,6 @@ function PlaygroundContent() {
     return sanitized;
   };
 
-  // Run code – updates output and saves it to localStorage for preview
   const runCode = useCallback(() => {
     if (!currentProject) return;
     setIsRunning(true);
@@ -278,16 +271,11 @@ function PlaygroundContent() {
     const sanitizedHtml = sanitizeCode(htmlContent);
     setOutput(sanitizedHtml);
     setConsoleLogs([]);
-    
-    // Save output to localStorage for preview page
     localStorage.setItem('playground_preview_html', sanitizedHtml);
-    
     setIsRunning(false);
-    showToast('✅ Code exécuté !', 'success');
-  }, [currentProject, showToast]);
+    // No toast
+  }, [currentProject]);
 
-  // Listen for console messages from iframe (if we had one, but we don't)
-  // We'll keep the listener for future use.
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'console') {
@@ -302,13 +290,11 @@ function PlaygroundContent() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  // Auto-run on change
   useEffect(() => {
     const timer = setTimeout(() => runCode(), 500);
     return () => clearTimeout(timer);
   }, [currentProject, runCode]);
 
-  // Initial run
   useEffect(() => {
     if (currentProject) {
       runCode();
@@ -320,11 +306,11 @@ function PlaygroundContent() {
     if (!activeFile) return;
     try {
       await navigator.clipboard.writeText(activeFile.content);
-      showToast('📋 Code copié!', 'success');
+      // No toast
     } catch {
-      showToast('❌ Erreur', 'error');
+      // No toast
     }
-  }, [activeFile, showToast]);
+  }, [activeFile]);
 
   const downloadFile = useCallback(() => {
     if (!activeFile) return;
@@ -337,8 +323,8 @@ function PlaygroundContent() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast(`📥 ${activeFile.name} téléchargé`, 'success');
-  }, [activeFile, showToast]);
+    // No toast
+  }, [activeFile]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -350,7 +336,6 @@ function PlaygroundContent() {
     }
   }, []);
 
-  // Handle tab key in textarea
   const handleTabKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab') {
       e.preventDefault();
@@ -367,7 +352,6 @@ function PlaygroundContent() {
     }
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -386,7 +370,6 @@ function PlaygroundContent() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [runCode, downloadFile, isFullscreen, toggleFullscreen]);
 
-  // ---- Render ----
   if (!session) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
@@ -416,7 +399,6 @@ function PlaygroundContent() {
 
   return (
     <div className={`min-h-screen bg-gray-900 text-white flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Link href="/" className="p-1.5 hover:bg-gray-700 rounded-lg transition flex-shrink-0">
@@ -456,7 +438,6 @@ function PlaygroundContent() {
         </div>
         
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-          {/* Add file button */}
           <button 
             onClick={() => {
               const types: FileType[] = ['html', 'css', 'javascript'];
@@ -484,9 +465,8 @@ function PlaygroundContent() {
                   return p;
                 }));
                 setActiveTabId(newFile.id);
-                showToast(`✅ ${newFile.name} ajouté`, 'success');
               } else {
-                showToast('❌ Tous les types existent déjà', 'warning');
+                // No toast
               }
             }}
             className="p-1.5 hover:bg-gray-700 rounded-lg transition text-gray-400 hover:text-white"
@@ -514,13 +494,9 @@ function PlaygroundContent() {
             {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">Run</span>
           </button>
-          {/* ✅ Preview button – navigates to preview page */}
           <button
             onClick={() => {
-              // Ensure output is saved before navigating
-              if (currentProject) {
-                localStorage.setItem('playground_preview_html', output);
-              }
+              localStorage.setItem('playground_preview_html', output);
               router.push('/playground/preview');
             }}
             className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-xs sm:text-sm font-medium"
@@ -531,9 +507,7 @@ function PlaygroundContent() {
         </div>
       </header>
       
-      {/* Main layout – Editor only */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Tabs */}
         <div className="bg-gray-800 border-b border-gray-700 flex overflow-x-auto scrollbar-hide">
           {currentProject.files.map((file) => (
             <div
@@ -550,12 +524,8 @@ function PlaygroundContent() {
               {currentProject.files.length > 1 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); 
-                    // Delete file logic
                     const fileId = file.id;
-                    if (currentProject.files.length <= 1) {
-                      showToast('❌ Impossible de supprimer le dernier fichier', 'error');
-                      return;
-                    }
+                    if (currentProject.files.length <= 1) return;
                     const remaining = currentProject.files.filter(f => f.id !== fileId);
                     setProjects(prev => prev.map(p => {
                       if (p.id === currentProjectId) {
@@ -566,7 +536,6 @@ function PlaygroundContent() {
                     if (activeTabId === fileId) {
                       setActiveTabId(remaining[0]?.id || '');
                     }
-                    showToast('🗑️ Fichier supprimé', 'info');
                   }}
                   className="text-gray-500 hover:text-red-400 transition p-0.5"
                 >
@@ -577,7 +546,6 @@ function PlaygroundContent() {
           ))}
         </div>
         
-        {/* Editor area */}
         <div className="flex-1 relative min-h-[300px] sm:min-h-[400px]">
           <textarea
             ref={textareaRef}
@@ -597,7 +565,6 @@ function PlaygroundContent() {
           </div>
         </div>
         
-        {/* Console toggle */}
         <button
           onClick={() => setShowConsole(!showConsole)}
           className={`flex items-center gap-2 px-3 py-1.5 text-xs border-t border-gray-700 transition ${
@@ -627,7 +594,6 @@ function PlaygroundContent() {
         )}
       </div>
       
-      {/* Footer shortcuts */}
       <div className="bg-gray-800 border-t border-gray-700 px-3 py-1.5 text-[10px] text-gray-500 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span>⌘+Enter</span><span>Run</span>
@@ -641,7 +607,6 @@ function PlaygroundContent() {
         </div>
       </div>
       
-      {/* Modals */}
       {showNewProjectModal && (
         <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowNewProjectModal(false)}>
           <div className="bg-gray-800 rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
@@ -654,7 +619,7 @@ function PlaygroundContent() {
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') {
-                if (!newProjectName.trim()) { showToast('Entrez un nom de projet', 'warning'); return; }
+                if (!newProjectName.trim()) return;
                 const newProject: Project = {
                   id: generateId(),
                   name: newProjectName.trim(),
@@ -667,12 +632,11 @@ function PlaygroundContent() {
                 setActiveTabId(newProject.files[0].id);
                 setNewProjectName('');
                 setShowNewProjectModal(false);
-                showToast(`✅ Projet "${newProjectName}" créé`, 'success');
               }}}
             />
             <div className="flex gap-2 mt-4">
               <button onClick={() => {
-                if (!newProjectName.trim()) { showToast('Entrez un nom de projet', 'warning'); return; }
+                if (!newProjectName.trim()) return;
                 const newProject: Project = {
                   id: generateId(),
                   name: newProjectName.trim(),
@@ -685,7 +649,6 @@ function PlaygroundContent() {
                 setActiveTabId(newProject.files[0].id);
                 setNewProjectName('');
                 setShowNewProjectModal(false);
-                showToast(`✅ Projet "${newProjectName}" créé`, 'success');
               }} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
                 Créer
               </button>
@@ -709,7 +672,7 @@ function PlaygroundContent() {
             <p className="text-gray-400 mb-6">Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.</p>
             <div className="flex gap-2">
               <button onClick={() => {
-                if (projects.length <= 1) { showToast('❌ Impossible de supprimer le dernier projet', 'error'); return; }
+                if (projects.length <= 1) return;
                 const projectId = showDeleteProject;
                 const project = projects.find(p => p.id === projectId);
                 setProjects(prev => prev.filter(p => p.id !== projectId));
@@ -721,7 +684,6 @@ function PlaygroundContent() {
                   }
                 }
                 setShowDeleteProject(null);
-                showToast(`🗑️ Projet "${project?.name}" supprimé`, 'info');
               }} className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
                 Supprimer
               </button>
