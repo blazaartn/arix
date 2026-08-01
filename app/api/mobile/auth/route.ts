@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         const u = userResult.rows[0];
         const token = jwt.sign(
           { userId: u.id, email: u.email },
-          JWT_SECRET,
+          JWT_SECRET!,
           { expiresIn: '30d' }
         );
         
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     // ============================================
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      JWT_SECRET,
+      JWT_SECRET!,
       { expiresIn: '30d' }
     );
 
