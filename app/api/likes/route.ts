@@ -1,6 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../lib/db';
 import { addXP, XP_RULES } from '../../../lib/xp';
 import { createNotification } from '../../../lib/notifications';
@@ -10,6 +9,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { searchParams } = new URL(request.url);
     const questionId = searchParams.get('questionId');
     const questionIdsParam = searchParams.get('questionIds');
+    
+    const auth = await getAuthenticatedUser(request);
     
     // ✅ Handle multiple question IDs (batch request)
     if (questionIdsParam) {
@@ -33,14 +34,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
 
       // ✅ Check user likes for all questions
-      const session = await getServerSession(authOptions);
       let userLikeMap: Record<string, boolean> = {};
       
-      if (session && session.user?.id) {
+      if (auth?.user?.id) {
         const userLikesResult = await query(
           `SELECT question_id FROM likes 
            WHERE user_id = $1 AND question_id = ANY($2)`,
-          [session.user.id, questionIds]
+          [auth.user.id, questionIds]
         );
         userLikesResult.rows.forEach(row => {
           userLikeMap[row.question_id] = true;
@@ -64,11 +64,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
 
       let userLiked = false;
-      const session = await getServerSession(authOptions);
-      if (session && session.user?.id) {
+      if (auth?.user?.id) {
         const userResult = await query(
           'SELECT 1 FROM likes WHERE user_id = $1 AND question_id = $2 LIMIT 1',
-          [session.user.id, questionId]
+          [auth.user.id, questionId]
         );
         userLiked = userResult.rows.length > 0;
       }
@@ -87,11 +86,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
+  const auth = await getAuthenticatedUser(request);
   
-  if (!session || !session.user || !session.user.id) {
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { questionId } = await request.json();
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
     }
 
-    const userId = session.user.id;
+    const userId = user.id;
 
     const existing = await query(
       'SELECT 1 FROM likes WHERE user_id = $1 AND question_id = $2 LIMIT 1',

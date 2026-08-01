@@ -1,6 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../../lib/db';
 
 export async function GET(
@@ -9,6 +8,7 @@ export async function GET(
 ): Promise<NextResponse> {
   try {
     const { id } = await params;
+    const auth = await getAuthenticatedUser(request);
 
     // Increment view count
     try {
@@ -105,13 +105,12 @@ export async function GET(
     `, [id]);
 
     // Get user like status
-    const session = await getServerSession(authOptions);
     let userLiked = false;
-    if (session?.user?.id) {
+    if (auth?.user?.id) {
       try {
         const likeResult = await query(
           'SELECT 1 FROM likes WHERE user_id = $1 AND question_id = $2 LIMIT 1',
-          [session.user.id, id]
+          [auth.user.id, id]
         );
         userLiked = likeResult.rows.length > 0;
       } catch {

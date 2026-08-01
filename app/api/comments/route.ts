@@ -1,6 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../lib/db';
 import { addXP, XP_RULES } from '../../../lib/xp';
 import { createNotification } from '../../../lib/notifications';
@@ -18,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
     }
 
-    const session = await getServerSession(authOptions);
+    const auth = await getAuthenticatedUser(request);
 
     const cacheKey = getCacheKey('comments', { questionId, limit, offset });
     
@@ -27,11 +26,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       async () => {
         // ✅ Get reported comment IDs for the current user
         let reportedIds: string[] = [];
-        if (session?.user?.id) {
+        if (auth?.user?.id) {
           const reportedResult = await query(
             `SELECT target_id FROM alerts 
              WHERE user_id = $1 AND target_type = 'comment'`,
-            [session.user.id]
+            [auth.user.id]
           );
           reportedIds = reportedResult.rows.map((row: any) => row.target_id);
         }
@@ -120,10 +119,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 // POST - Create comment
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { questionId, content, imageIds } = await request.json();
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = await query(
       `INSERT INTO comments (user_id, question_id, content)
        VALUES ($1, $2, $3) RETURNING *`,
-      [session.user.id, questionId, content?.trim() || '']
+      [user.id, questionId, content?.trim() || '']
     );
 
     const comment = result.rows[0];
@@ -152,12 +152,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       for (const imageId of imageIds) {
         await query(
           'UPDATE images SET comment_id = $1 WHERE id = $2 AND user_id = $3',
-          [comment.id, imageId, session.user.id]
+          [comment.id, imageId, user.id]
         );
       }
     }
 
-    await addXP(session.user.id, XP_RULES.COMMENT, 'comment', comment.id);
+    await addXP(user.id, XP_RULES.COMMENT, 'comment', comment.id);
 
     // Get question owner for notification
     const questionOwner = await query(
@@ -165,10 +165,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       [questionId]
     );
 
-    if (questionOwner.rows.length > 0 && questionOwner.rows[0].user_id !== session.user.id) {
+    if (questionOwner.rows.length > 0 && questionOwner.rows[0].user_id !== user.id) {
       await createNotification({
         userId: questionOwner.rows[0].user_id,
-        actorId: session.user.id,
+        actorId: user.id,
         type: 'comment',
         content: `a commenté votre question "${questionOwner.rows[0].title}"`,
         questionId: questionId,
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get author info
     const author = await query(
       'SELECT name, avatar_url FROM users WHERE id = $1',
-      [session.user.id]
+      [user.id]
     );
 
     // Invalidate only specific question caches
@@ -205,10 +205,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 // DELETE - Delete comment
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -227,7 +228,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Commentaire non trouvé' }, { status: 404 });
     }
 
-    if (comment.rows[0].user_id !== session.user.id) {
+    if (comment.rows[0].user_id !== user.id) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 

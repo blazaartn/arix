@@ -1,14 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../lib/db';
 
 // POST - Create an alert
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { targetId, targetType, reason } = await request.json();
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Check if user already alerted this target
     const existing = await query(
       'SELECT id FROM alerts WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
-      [session.user.id, targetType, targetId]
+      [user.id, targetType, targetId]
     );
 
     if (existing.rows.length > 0) {
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await query(
       `INSERT INTO alerts (user_id, target_type, target_id, reason)
        VALUES ($1, $2, $3, $4)`,
-      [session.user.id, targetType, targetId, reason]
+      [user.id, targetType, targetId, reason]
     );
 
     return NextResponse.json({ success: true, message: 'Signalement envoyé' });

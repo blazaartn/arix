@@ -1,14 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../../lib/db';
 import { invalidateCache } from '../../../../lib/cache';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { commentId } = await request.json();
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const existing = await query(
       'SELECT 1 FROM likes WHERE user_id = $1 AND comment_id = $2 LIMIT 1',
-      [session.user.id, commentId]
+      [user.id, commentId]
     );
 
     let liked = false;
@@ -35,13 +35,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (existing.rows.length > 0) {
       await query(
         'DELETE FROM likes WHERE user_id = $1 AND comment_id = $2',
-        [session.user.id, commentId]
+        [user.id, commentId]
       );
       liked = false;
     } else {
       await query(
         'INSERT INTO likes (user_id, comment_id) VALUES ($1, $2)',
-        [session.user.id, commentId]
+        [user.id, commentId]
       );
       liked = true;
     }

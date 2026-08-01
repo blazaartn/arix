@@ -1,14 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../lib/db';
 import { getCached, CACHE_TTL, invalidateCache, getCacheKey } from '../../../lib/cache';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const unreadOnly = searchParams.get('unread') === 'true';
 
     const cacheKey = getCacheKey('notifications', { 
-      userId: session.user.id, 
+      userId: user.id, 
       unreadOnly, 
       limit, 
       offset 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           LEFT JOIN users u ON n.actor_id = u.id
           WHERE n.user_id = $1
         `;
-        const params: any[] = [session.user.id];
+        const params: any[] = [user.id];
         let paramIndex = 2;
 
         if (unreadOnly) {
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           hasMore: result.rows.length === limit
         };
       },
-      unreadOnly ? CACHE_TTL.NOTIFICATIONS : 60 // Cache unread longer (60 sec) for better performance
+      unreadOnly ? CACHE_TTL.NOTIFICATIONS : 60
     );
 
     return NextResponse.json({
@@ -81,10 +81,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -94,24 +95,24 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       await query(
         `UPDATE notifications SET is_read = true, read_at = CURRENT_TIMESTAMP 
          WHERE id = $1 AND user_id = $2`,
-        [id, session.user.id]
+        [id, user.id]
       );
     } else {
       await query(
         `UPDATE notifications SET is_read = true, read_at = CURRENT_TIMESTAMP 
          WHERE user_id = $1 AND is_read = false`,
-        [session.user.id]
+        [user.id]
       );
     }
 
     // Get updated unread count with fast query
     const countResult = await query(
       'SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = false',
-      [session.user.id]
+      [user.id]
     );
 
     // Invalidate cache for this user
-    await invalidateCache(`notifications:{"userId":"${session.user.id}"*`);
+    await invalidateCache(`notifications:{"userId":"${user.id}"*`);
 
     return NextResponse.json({
       success: true,

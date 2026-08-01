@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../lib/auth';
+import { NextResponse, NextRequest } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../../lib/db';
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const auth = await getAuthenticatedUser(request);
+  if (!auth) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
+  const user = auth.user;
 
   try {
     // ✅ Remove like_count from the query
@@ -25,7 +25,7 @@ export async function GET() {
        FROM questions q
        WHERE q.user_id = $1
        ORDER BY q.created_at DESC`,
-      [session.user.id]
+      [user.id]
     );
 
     return NextResponse.json({

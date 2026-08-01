@@ -1,13 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../lib/db';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50); // ✅ Max 50
+    const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50);
     const offset = parseInt(searchParams.get('offset') || '0');
+
+    const auth = await getAuthenticatedUser(request);
 
     // ✅ OPTIMIZED: Use denormalized user_rank column (no counting needed)
     const result = await query(`
@@ -31,14 +32,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
 
     // ✅ Get user rank from denormalized column (instant lookup, no counting)
-    const session = await getServerSession(authOptions);
     let userRank = null;
-    if (session && session.user?.id) {
+    if (auth?.user?.id) {
       const userRankResult = await query(`
         SELECT user_rank
         FROM users
         WHERE id = $1
-      `, [session.user.id]);
+      `, [auth.user.id]);
       
       if (userRankResult.rows.length > 0) {
         userRank = userRankResult.rows[0].user_rank;

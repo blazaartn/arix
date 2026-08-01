@@ -1,6 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-mobile';
 import { query } from '../../../lib/db';
 import { addXP, XP_RULES } from '../../../lib/xp';
 import { createNotification } from '../../../lib/notifications';
@@ -18,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50);
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const session = await getServerSession(authOptions);
+    const auth = await getAuthenticatedUser(request);
 
     // ==========================================
     // SINGLE QUESTION
@@ -51,10 +50,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      if (session?.user?.id) {
+      if (auth?.user?.id) {
         const reported = await query(
           'SELECT id FROM alerts WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
-          [session.user.id, 'question', id]
+          [auth.user.id, 'question', id]
         );
         if (reported.rows.length > 0) {
           return NextResponse.json(
@@ -154,10 +153,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       // Check if user liked
       let userLiked = false;
-      if (session && session.user?.id) {
+      if (auth?.user?.id) {
         const likeResult = await query(
           'SELECT 1 FROM likes WHERE user_id = $1 AND question_id = $2 LIMIT 1',
-          [session.user.id, id]
+          [auth.user.id, id]
         );
         userLiked = likeResult.rows.length > 0;
       }
@@ -232,11 +231,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const conditions: string[] = [];
 
         // Exclude questions the current user has reported
-        if (session?.user?.id) {
+        if (auth?.user?.id) {
           const reportedResult = await query(
             `SELECT target_id FROM alerts 
              WHERE user_id = $1 AND target_type = 'question'`,
-            [session.user.id]
+            [auth.user.id]
           );
           
           const reportedIds = reportedResult.rows.map((row: any) => row.target_id);
@@ -287,10 +286,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const questionIds = data.questions.map((q: any) => q.id);
     let userLikeMap: Record<string, boolean> = {};
 
-    if (questionIds.length > 0 && session?.user?.id) {
+    if (questionIds.length > 0 && auth?.user?.id) {
       const userLikesResult = await query(
         `SELECT question_id FROM likes WHERE user_id = $1 AND question_id = ANY($2)`,
-        [session.user.id, questionIds]
+        [auth.user.id, questionIds]
       );
       userLikesResult.rows.forEach((row: any) => {
         userLikeMap[row.question_id] = true;
@@ -323,14 +322,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 // POST - Create a new question
 // ============================================
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
+  const auth = await getAuthenticatedUser(request);
   
-  if (!session || !session.user) {
+  if (!auth) {
     return NextResponse.json(
       { error: 'Non autorisé' },
       { status: 401 }
     );
   }
+  const user = auth.user;
 
   try {
     const body = await request.json();
@@ -361,7 +361,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       `INSERT INTO questions (user_id, title, content, subject_name, code_content, code_language)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, title, content, user_id, subject_name, code_content, code_language, created_at`,
-      [session.user.id, title.trim(), content.trim(), subjectName.trim(), codeContent?.trim() || null, codeLanguage || 'javascript']
+      [user.id, title.trim(), content.trim(), subjectName.trim(), codeContent?.trim() || null, codeLanguage || 'javascript']
     );
 
     const question = result.rows[0];
@@ -370,12 +370,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       for (const imageId of imageIds) {
         await query(
           'UPDATE images SET question_id = $1 WHERE id = $2 AND user_id = $3',
-          [question.id, imageId, session.user.id]
+          [question.id, imageId, user.id]
         );
       }
     }
 
-    await addXP(session.user.id, XP_RULES.ASK_QUESTION, 'ask_question', question.id);
+    await addXP(user.id, XP_RULES.ASK_QUESTION, 'ask_question', question.id);
 
     const questionWithAuthor = await query(
       `SELECT 
@@ -426,14 +426,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 // PUT - Update a question
 // ============================================
 export async function PUT(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
+  const auth = await getAuthenticatedUser(request);
   
-  if (!session || !session.user) {
+  if (!auth) {
     return NextResponse.json(
       { error: 'Non autorisé' },
       { status: 401 }
     );
   }
+  const user = auth.user;
 
   try {
     const body = await request.json();
@@ -472,7 +473,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (question.rows[0].user_id !== session.user.id) {
+    if (question.rows[0].user_id !== user.id) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 403 }
@@ -490,12 +491,12 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     if (imageIds && Array.isArray(imageIds)) {
       await query(
         'DELETE FROM images WHERE question_id = $1 AND user_id = $2',
-        [id, session.user.id]
+        [id, user.id]
       );
       for (const imageId of imageIds) {
         await query(
           'UPDATE images SET question_id = $1 WHERE id = $2 AND user_id = $3',
-          [id, imageId, session.user.id]
+          [id, imageId, user.id]
         );
       }
     }
@@ -522,14 +523,15 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 // DELETE - Delete a question
 // ============================================
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
-  const session = await getServerSession(authOptions);
+  const auth = await getAuthenticatedUser(request);
   
-  if (!session || !session.user) {
+  if (!auth) {
     return NextResponse.json(
       { error: 'Non autorisé' },
       { status: 401 }
     );
   }
+  const user = auth.user;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -554,7 +556,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (question.rows[0].user_id !== session.user.id && session.user.role !== 'admin') {
+    if (question.rows[0].user_id !== user.id && user.role !== 'admin') {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 403 }

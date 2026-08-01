@@ -1,4 +1,4 @@
-import NextAuth, { NextAuthOptions } from 'next-auth';
+import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { query } from './db';
 import { Session } from 'next-auth';
@@ -29,6 +29,7 @@ declare module 'next-auth/jwt' {
     }
 }
 
+// ✅ This is the ONLY export
 export const authOptions: NextAuthOptions = {
     providers: [
         GoogleProvider({
@@ -42,29 +43,13 @@ export const authOptions: NextAuthOptions = {
                 try {
                     if (!user.email) return false;
 
-                    const googleId = profile?.sub ?? undefined;
                     const avatarUrl = user.image ?? undefined;
                     const userName = user.name ?? 'User';
 
-                    // ✅ 1. Check by google_id
+                    console.log('🔐 SignIn attempt:', { email: user.email });
+
+                    // Check if user exists by email
                     let existingUser = await query(
-                        'SELECT * FROM users WHERE google_id = $1',
-                        [googleId]
-                    );
-
-                    if (existingUser.rows.length > 0) {
-                        await query(
-                            `UPDATE users 
-                             SET name = $1, avatar_url = $2, email = $3, 
-                                 is_active = true, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-                             WHERE google_id = $4`,
-                            [userName, avatarUrl, user.email, googleId]
-                        );
-                        return true;
-                    }
-
-                    // ✅ 2. Check by email
-                    existingUser = await query(
                         'SELECT * FROM users WHERE email = $1',
                         [user.email]
                     );
@@ -72,23 +57,25 @@ export const authOptions: NextAuthOptions = {
                     if (existingUser.rows.length > 0) {
                         await query(
                             `UPDATE users 
-                             SET name = $1, avatar_url = $2, google_id = $3, 
+                             SET name = $1, avatar_url = $2, 
                                  is_active = true, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-                             WHERE email = $4`,
-                            [userName, avatarUrl, googleId, user.email]
+                             WHERE email = $3`,
+                            [userName, avatarUrl, user.email]
                         );
+                        console.log('✅ User updated:', user.email);
                         return true;
                     }
 
-                    // ✅ 3. Create new user
+                    // Create new user
                     const result = await query(
-                        `INSERT INTO users (email, name, google_id, avatar_url, role)
-                         VALUES ($1, $2, $3, $4, $5)
+                        `INSERT INTO users (email, name, avatar_url, role)
+                         VALUES ($1, $2, $3, $4)
                          RETURNING id`,
-                        [user.email, userName, googleId, avatarUrl, 'student']
+                        [user.email, userName, avatarUrl, 'student']
                     );
 
                     const userId = result.rows[0].id;
+                    console.log('✅ New user created:', userId);
 
                     // Default todos
                     const defaultTodos = [
@@ -110,7 +97,7 @@ export const authOptions: NextAuthOptions = {
                     return true;
 
                 } catch (error) {
-                    console.error('SignIn error:', error);
+                    console.error('❌ SignIn error:', error);
                     return false;
                 }
             }
@@ -118,7 +105,6 @@ export const authOptions: NextAuthOptions = {
         },
 
         async session({ session, token }): Promise<Session> {
-            // ✅ Always return session even if DB fails
             if (session.user && token.email) {
                 try {
                     const user = await query(
@@ -136,7 +122,6 @@ export const authOptions: NextAuthOptions = {
                         session.user.name = userData.name;
                         session.user.role = userData.role || 'student';
                     } else {
-                        // ✅ If user not found (soft-deleted), still return basic info from token
                         session.user.id = token.userId || '';
                         session.user.xp_points = 0;
                         session.user.level = 1;
@@ -147,7 +132,6 @@ export const authOptions: NextAuthOptions = {
                     }
                 } catch (error) {
                     console.error('Session error (non-fatal):', error);
-                    // ✅ Fallback – return session with token data only
                     session.user.id = token.userId || '';
                     session.user.xp_points = 0;
                     session.user.level = 1;
@@ -182,4 +166,3 @@ export const authOptions: NextAuthOptions = {
     debug: process.env.NODE_ENV === 'development',
 };
 
-export default NextAuth(authOptions);
