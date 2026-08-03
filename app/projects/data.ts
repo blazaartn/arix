@@ -213,8 +213,8 @@ export const PROJECTS: Project[] = [
         title: 'Formulaire d\'inscription - HTML',
         description: 'Créez un formulaire d\'inscription complet avec validation HTML.',
         category: 'html',
-        pageUrl: 'https://alphaa-pixel.github.io/formulaire-html/',
-        downloadUrl: 'https://github.com/alphaa-pixel/formulaire-html/archive/refs/heads/main.zip',
+        pageUrl: 'https://alphaa-pixel.github.io/formulaire/',
+        downloadUrl: 'https://github.com/alphaa-pixel/formulaire/archive/refs/heads/main.zip',
         technologies: ['HTML5', 'CSS3'],
         tasks: [
             'Compléter le formulaire avec les bons attributs (action, method, type)',
@@ -229,8 +229,8 @@ export const PROJECTS: Project[] = [
         title: 'Page de présentation - Médias',
         description: 'Créez une galerie multimédia avec images, vidéos et audios.',
         category: 'html',
-        pageUrl: 'https://alphaa-pixel.github.io/presentation-html/',
-        downloadUrl: 'https://github.com/alphaa-pixel/presentation-html/archive/refs/heads/main.zip',
+        pageUrl: 'https://alphaa-pixel.github.io/presentation/',
+        downloadUrl: 'https://github.com/alphaa-pixel/presentation/archive/refs/heads/main.zip',
         technologies: ['HTML5', 'CSS3'],
         tasks: [
             'Compléter les attributs src, alt, controls des médias',
@@ -245,8 +245,8 @@ export const PROJECTS: Project[] = [
         title: 'Plan de repas - Tableau',
         description: 'Créez un plan de repas hebdomadaire avec un tableau HTML.',
         category: 'html',
-        pageUrl: 'https://alphaa-pixel.github.io/repas-html/',
-        downloadUrl: 'https://github.com/alphaa-pixel/repas-html/archive/refs/heads/main.zip',
+        pageUrl: 'https://alphaa-pixel.github.io/repas/',
+        downloadUrl: 'https://github.com/alphaa-pixel/repas/archive/refs/heads/main.zip',
         technologies: ['HTML5', 'CSS3'],
         tasks: [
             'Compléter le tableau avec vos repas',
@@ -261,8 +261,8 @@ export const PROJECTS: Project[] = [
         title: 'CV en ligne - Structure sémantique',
         description: 'Créez votre CV en utilisant les balises sémantiques HTML5.',
         category: 'html',
-        pageUrl: 'https://alphaa-pixel.github.io/cv-html/',
-        downloadUrl: 'https://github.com/alphaa-pixel/cv-html/archive/refs/heads/main.zip',
+        pageUrl: 'https://alphaa-pixel.github.io/cv/',
+        downloadUrl: 'https://github.com/alphaa-pixel/cv/archive/refs/heads/main.zip',
         technologies: ['HTML5', 'CSS3'],
         tasks: [
             'Compléter toutes les sections (header, nav, main, section, aside, footer)',

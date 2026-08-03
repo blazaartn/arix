@@ -29,13 +29,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: "bacplus - Plateforme d'entraide pour le Bac Tunisien",
     description: "Rejoignez la communauté bacplus pour poser des questions, partager des cours, et collaborer sur des projets.",
-    url: "https://bacpluss.vercel.app",
+    url: "https://bac-plus.vercel.app",
     siteName: "bacplus",
     locale: "fr_FR",
     type: "website",
     images: [
       {
-        url: "https://bacpluss.vercel.app/og-image.png",
+        url: "https://bac-plus.vercel.app/og-image.png",
         width: 1200,
         height: 630,
         alt: "bacplus - Plateforme d'entraide pour le Bac Tunisien",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "bacplus - Plateforme d'entraide pour le Bac Tunisien",
     description: "Rejoignez la communauté bacplus pour poser des questions, partager des cours, et collaborer sur des projets.",
-    images: ["https://bacpluss.vercel.app/og-image.png"],
+    images: ["https://bac-plus.vercel.app/og-image.png"],
   },
   verification: {
     google: "your-google-site-verification-code",
