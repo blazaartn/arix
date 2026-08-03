@@ -97,6 +97,7 @@ export interface Project {
     description: string;
     category: 'html' | 'css' | 'javascript' | 'php' | 'sql' | 'python' | 'fullstack';
     pageUrl: string;
+    downloadUrl: string;
     technologies: string[];
     tasks: string[];
     is_completed: boolean;
@@ -196,7 +197,8 @@ export const PROJECTS: Project[] = [
         title: 'Emploi du Temps - HTML',
         description: 'Créez un emploi du temps interactif en HTML pur.',
         category: 'html',
-        pageUrl: '/projects/1',
+        pageUrl: 'https://alphaa-pixel.github.io/emploi-html/',
+        downloadUrl: 'https://github.com/alphaa-pixel/emploi-html/archive/refs/heads/main.zip',
         technologies: ['HTML5', 'CSS3'],
         tasks: [
             'Créer une grille 7x24 (jours x heures)',
@@ -208,33 +210,66 @@ export const PROJECTS: Project[] = [
     },
     {
         id: '2',
-        title: 'Restaurant App - HTML/CSS',
-        description: 'Complétez le code HTML et CSS d\'une petite application de restaurant.',
-        category: 'css',
-        pageUrl: '/projects/2',
-        technologies: ['HTML5', 'CSS3', 'Flexbox', 'Grid'],
+        title: 'Formulaire d\'inscription - HTML',
+        description: 'Créez un formulaire d\'inscription complet avec validation HTML.',
+        category: 'html',
+        pageUrl: 'https://alphaa-pixel.github.io/formulaire-html/',
+        downloadUrl: 'https://github.com/alphaa-pixel/formulaire-html/archive/refs/heads/main.zip',
+        technologies: ['HTML5', 'CSS3'],
         tasks: [
-            'Styliser le menu du restaurant',
-            'Ajouter des animations hover sur les plats',
-            'Créer un panier interactif (frontend uniquement)',
-            'Rendre la page responsive'
+            'Compléter le formulaire avec les bons attributs (action, method, type)',
+            'Ajouter un champ "date de naissance" avec type="date"',
+            'Ajouter une case à cocher "J\'accepte les conditions"',
+            'Tester la validation HTML5'
         ],
         is_completed: false,
     },
     {
         id: '3',
-        title: 'Fonctions JavaScript - 3 Exercices',
-        description: 'Implémentez 3 fonctions JavaScript essentielles.',
-        category: 'javascript',
-        pageUrl: '/projects/3',
-        technologies: ['JavaScript', 'ES6'],
+        title: 'Page de présentation - Médias',
+        description: 'Créez une galerie multimédia avec images, vidéos et audios.',
+        category: 'html',
+        pageUrl: 'https://alphaa-pixel.github.io/presentation-html/',
+        downloadUrl: 'https://github.com/alphaa-pixel/presentation-html/archive/refs/heads/main.zip',
+        technologies: ['HTML5', 'CSS3'],
         tasks: [
-            'Fonction isPrime(n) : vérifier si un nombre est premier',
-            'Fonction validateEmail(email) : valider un format d\'email avec regex',
-            'Fonction formatString(str, style) : formater une chaîne',
-            'Écrire des tests unitaires pour chaque fonction'
+            'Compléter les attributs src, alt, controls des médias',
+            'Utiliser vos propres fichiers médias',
+            'Ajouter plusieurs formats pour la vidéo (mp4, webm)',
+            'Ajouter un lien qui s\'ouvre dans un nouvel onglet'
         ],
         is_completed: false,
     },
-   
+    {
+        id: '4',
+        title: 'Plan de repas - Tableau',
+        description: 'Créez un plan de repas hebdomadaire avec un tableau HTML.',
+        category: 'html',
+        pageUrl: 'https://alphaa-pixel.github.io/repas-html/',
+        downloadUrl: 'https://github.com/alphaa-pixel/repas-html/archive/refs/heads/main.zip',
+        technologies: ['HTML5', 'CSS3'],
+        tasks: [
+            'Compléter le tableau avec vos repas',
+            'Ajouter une ligne pour le week-end (samedi et dimanche)',
+            'Utiliser colspan pour fusionner les cellules',
+            'Ajouter une colonne "Calories"'
+        ],
+        is_completed: false,
+    },
+    {
+        id: '5',
+        title: 'CV en ligne - Structure sémantique',
+        description: 'Créez votre CV en utilisant les balises sémantiques HTML5.',
+        category: 'html',
+        pageUrl: 'https://alphaa-pixel.github.io/cv-html/',
+        downloadUrl: 'https://github.com/alphaa-pixel/cv-html/archive/refs/heads/main.zip',
+        technologies: ['HTML5', 'CSS3'],
+        tasks: [
+            'Compléter toutes les sections (header, nav, main, section, aside, footer)',
+            'Ajouter une photo de profil avec <img>',
+            'Ajouter une liste de compétences avec <ol>',
+            'Ajouter un lien vers votre GitHub ou LinkedIn'
+        ],
+        is_completed: false,
+    },
 ];

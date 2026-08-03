@@ -9,7 +9,7 @@ import {
     Layout, Globe, CheckCircle,
     Clock, ChevronRight, 
     ExternalLink, FolderOpen, Search,
-    Briefcase, X, Loader2
+    Briefcase, X, Loader2, Download
 } from 'lucide-react';
 import { PROJECTS, Project } from './data';
 
@@ -110,8 +110,14 @@ function ProjectCard({
     const router = useRouter();
     const [isExpanded, setIsExpanded] = useState(false);
 
-    const handleClick = () => {
-        router.push(project.pageUrl);
+    const handleOpen = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        window.open(project.pageUrl, '_blank');
+    };
+
+    const handleDownload = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        window.open(project.downloadUrl, '_blank');
     };
 
     const handleToggleComplete = (e: React.MouseEvent) => {
@@ -184,11 +190,19 @@ function ProjectCard({
                 {/* Actions */}
                 <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-50">
                     <button
-                        onClick={handleClick}
+                        onClick={handleOpen}
                         className="flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-orange-500 text-white text-[10px] sm:text-sm font-medium rounded-lg hover:bg-orange-600 transition"
                     >
                         <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        Ouvrir
+                        Prévisualiser
+                    </button>
+                    <button
+                        onClick={handleDownload}
+                        className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 bg-blue-500 text-white text-[10px] sm:text-sm font-medium rounded-lg hover:bg-blue-600 transition"
+                    >
+                        <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Télécharger</span>
+                        <span className="sm:hidden">DL</span>
                     </button>
                     <button
                         onClick={handleToggleComplete}
@@ -198,7 +212,7 @@ function ProjectCard({
                                 : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                         }`}
                     >
-                        {project.is_completed ? '✓ Terminé' : 'Terminer'}
+                        {project.is_completed ? '✓' : 'Terminer'}
                     </button>
                 </div>
             </div>
