@@ -7,7 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   Home, Plus, Menu, Award, BookOpen, 
   X, LogOut, User, Code, Briefcase,
-  CheckSquare, Trophy, Settings
+  CheckSquare, Trophy, Settings,
+  GraduationCap, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Sidebar } from '@/components/Sidebar';
@@ -39,17 +40,28 @@ function MenuDrawer({
   onLogout: () => void;
 }) {
   const router = useRouter();
+  const [coursesOpen, setCoursesOpen] = useState(false);
   
   if (!isOpen) return null;
+
+  const courses = [
+    { label: 'HTML', href: '/cours/html' },
+    { label: 'CSS', href: '/cours/css' },
+    { label: 'JavaScript', href: '/cours/javascript' },
+    { label: 'PHP', href: '/cours/php' },
+    { label: 'SQL / BD', href: '/cours/sql' },
+  ];
   
   const menuItems = session ? [
     { icon: User, label: 'Profil', href: `/profile/${session?.user?.id}` },
+    { icon: GraduationCap, label: 'Cours', href: '#', subItems: courses },
     { icon: Code, label: 'Code Playground', href: '/playground' },
     { icon: Briefcase, label: 'Projets', href: '/projects' },
     { icon: CheckSquare, label: 'Todos', href: '/todos' },
     { icon: Trophy, label: 'Classement', href: '/ranking' },
     { icon: Settings, label: 'Paramètres', href: '/settings' },
   ] : [
+    { icon: GraduationCap, label: 'Cours', href: '#', subItems: courses },
     { icon: Trophy, label: 'Classement', href: '/ranking' },
     { icon: BookOpen, label: 'Séries', href: '/series' },
     { icon: Briefcase, label: 'Projets', href: '/projects' },
@@ -68,6 +80,10 @@ function MenuDrawer({
   const handleSignIn = async () => {
     onClose();
     await signIn('google', { callbackUrl: '/' });
+  };
+
+  const toggleCourses = () => {
+    setCoursesOpen(!coursesOpen);
   };
 
   return (
@@ -129,18 +145,59 @@ function MenuDrawer({
         )}
 
         <div className="p-3 space-y-1">
-          {menuItems.map((item) => (
-            <button 
-              key={item.label} 
-              onClick={() => handleNavigation(item.href)} 
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition group"
-            >
-              <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center group-hover:bg-orange-100 dark:group-hover:bg-orange-900 transition">
-                <item.icon className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-orange-600 dark:group-hover:text-orange-400" />
-              </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-50">{item.label}</span>
-            </button>
-          ))}
+          {menuItems.map((item) => {
+            if (item.subItems) {
+              return (
+                <div key={item.label}>
+                  <button 
+                    onClick={toggleCourses}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition group"
+                  >
+                    <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center group-hover:bg-orange-100 dark:group-hover:bg-orange-900 transition">
+                      <item.icon className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-orange-600 dark:group-hover:text-orange-400" />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-50 flex-1 text-left">
+                      {item.label}
+                    </span>
+                    {coursesOpen ? (
+                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+                  
+                  {coursesOpen && (
+                    <div className="ml-4 space-y-1 border-l-2 border-orange-200 dark:border-orange-800/50 pl-3">
+                      {item.subItems.map((sub) => (
+                        <button
+                          key={sub.label}
+                          onClick={() => handleNavigation(sub.href)}
+                          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition group"
+                        >
+                          <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-50">
+                            {sub.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            return (
+              <button 
+                key={item.label} 
+                onClick={() => handleNavigation(item.href)} 
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition group"
+              >
+                <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center group-hover:bg-orange-100 dark:group-hover:bg-orange-900 transition">
+                  <item.icon className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-orange-600 dark:group-hover:text-orange-400" />
+                </div>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-50">{item.label}</span>
+              </button>
+            );
+          })}
           
           <div className="border-t border-slate-200 dark:border-slate-700 my-2"></div>
           
